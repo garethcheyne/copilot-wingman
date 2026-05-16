@@ -262,3 +262,9 @@ that wrote most of this codebase. *Built for Copilot. Built with Copilot.*
 ## License
 
 MIT
+
+---
+
+<p align="center">
+  <em>No LLMs were harmed in the making of this project &mdash; just immense token abuse.</em>
+</p>
