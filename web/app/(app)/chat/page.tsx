@@ -295,7 +295,7 @@ export default function ChatPage() {
         <div className="relative shrink-0" ref={modelPickerRef}>
           <button
             onClick={() => setShowModelPicker(!showModelPicker)}
-            className="flex items-center gap-1.5 sm:gap-2 pl-2.5 sm:pl-3 pr-2 py-1.5 rounded-md text-xs border border-border bg-card/70 hover:bg-card hover:border-primary/40 transition-colors backdrop-blur-md max-w-[55vw] sm:max-w-none"
+            className="flex items-center gap-1.5 sm:gap-2 pl-2 sm:pl-2.5 pr-1.5 py-1.5 -mr-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors max-w-[55vw] sm:max-w-none"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-copilot-purple shadow-[0_0_8px_hsl(258_90%_66%/0.8)] shrink-0" />
             <span className="font-mono text-muted-foreground tracking-wider uppercase text-[9px] hidden sm:inline">model</span>
