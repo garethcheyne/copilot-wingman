@@ -357,18 +357,20 @@ export default function ChatPage() {
                   className="absolute left-12 top-1/2 -translate-y-1/2 w-40 h-40 sm:w-56 sm:h-56 rounded-full bg-primary/25 blur-2xl pointer-events-none mix-blend-screen"
                 />
 
-                {/* Logo — large, partially bleeds off the left edge */}
+                {/* Logo — large, sits left of the wordmark inside the
+                    container (no negative bleed — that was clipping the
+                    logo against the sidebar edge on desktop). */}
                 <Image
                   src="/wingman-ai.png"
                   alt="Wingman"
                   width={400}
                   height={400}
-                  className="relative shrink-0 w-44 h-44 sm:w-56 sm:h-56 -ml-8 sm:-ml-6 object-contain mix-blend-screen drop-shadow-[0_14px_40px_hsl(258_90%_66%/0.55)] select-none pointer-events-none"
+                  className="relative shrink-0 w-40 h-40 sm:w-56 sm:h-56 object-contain mix-blend-screen drop-shadow-[0_14px_40px_hsl(258_90%_66%/0.55)] select-none pointer-events-none"
                   priority
                 />
 
                 {/* Wordmark — inline, stacked tight, gradient on the brand word */}
-                <div className="relative flex-1 min-w-0 -ml-2 sm:ml-0">
+                <div className="relative flex-1 min-w-0">
                   <p className="label-mono text-primary/80 mb-1 sm:mb-1.5">// Ready</p>
                   <h2 className="font-display font-bold tracking-tight leading-[0.85]">
                     <span className="block text-4xl sm:text-6xl text-foreground/90">Ask</span>
