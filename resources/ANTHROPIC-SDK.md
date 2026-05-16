@@ -5,7 +5,7 @@ Reference source: `resources/anthropic-sdk-typescript/` (gitignored shallow clon
 
 These are working notes captured while reading the Anthropic SDK so we can mirror
 the bits that matter for a **Wingman SDK** (`@wingman/sdk` or similar) that wraps our
-own proxy at `https://wingman.err403.com` / `http://localhost:3200`.
+own proxy (deployed host varies; e.g. `http://localhost:3200` in dev).
 
 ---
 
@@ -44,7 +44,7 @@ import Wingman from '@wingman/sdk';
 
 const client = new Wingman({
   apiKey: process.env.WINGMAN_API_KEY,        // wm_...
-  baseURL: 'https://wingman.err403.com',      // optional
+  baseURL: process.env.WINGMAN_BASE_URL,      // required
 });
 
 await client.health.check();                  // GET /api/health

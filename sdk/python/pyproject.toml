@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "wingman-sdk"
-version = "0.0.1"
-description = "Official Python SDK for the Wingman chat proxy (scaffold)"
+version = "0.1.0"
+description = "Official Python SDK for the Wingman chat proxy"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://wingman.err403.com"
+Homepage = "https://github.com/garethcheyne/copilot-wingman"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/wingman"]

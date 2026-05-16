@@ -1,6 +1,6 @@
 # @wingman/sdk
 
-Official Node.js SDK for the [Wingman](https://wingman.err403.com) chat proxy.
+Official Node.js SDK for the Wingman chat proxy.
 Zero dependencies, ESM-only, Node 18+ (uses the built-in `fetch`).
 
 ## Install
@@ -94,7 +94,7 @@ Network failures surface as `APIConnectionError` / `APIConnectionTimeoutError`.
 ```ts
 new Wingman({
   apiKey: "wm_...",                                // required (or WINGMAN_API_KEY)
-  baseURL: "https://wingman.err403.com",           // default
+  baseURL: "https://wingman.example.com",           // required (or WINGMAN_BASE_URL)
   timeout: 60_000,                                  // ms per request
   maxRetries: 2,                                    // retries 408/409/429/5xx + network
   defaultHeaders: { "X-Trace": "abc" },

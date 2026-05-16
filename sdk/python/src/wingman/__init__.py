@@ -1,19 +1,44 @@
-"""Wingman Python SDK — scaffold.
+"""Wingman SDK — official Python client for the Wingman chat proxy."""
 
-The full client is not yet implemented. See the Node SDK at sdk/node for the
-reference implementation, and sdk/python/README.md for the planned API.
-"""
+from .version import __version__
+from .client import Wingman
+from .errors import (
+    WingmanError,
+    APIError,
+    APIConnectionError,
+    APIConnectionTimeoutError,
+    APIUserAbortError,
+    BadRequestError,
+    AuthenticationError,
+    PermissionDeniedError,
+    NotFoundError,
+    ConflictError,
+    UnprocessableEntityError,
+    RateLimitError,
+    InternalServerError,
+)
+from .resources.chat import ChatResponse, ChatStreamChunk
+from .resources.models import ModelInfo
+from .resources.health import HealthResponse
 
-__version__ = "0.0.1"
-
-
-class _NotImplementedYet:
-    def __init__(self, *_, **__):
-        raise NotImplementedError(
-            "wingman-sdk for Python is not yet implemented. "
-            "See sdk/node for the working reference client."
-        )
-
-
-# Placeholder so `from wingman import Wingman` doesn't ImportError outright.
-Wingman = _NotImplementedYet
+__all__ = [
+    "__version__",
+    "Wingman",
+    "WingmanError",
+    "APIError",
+    "APIConnectionError",
+    "APIConnectionTimeoutError",
+    "APIUserAbortError",
+    "BadRequestError",
+    "AuthenticationError",
+    "PermissionDeniedError",
+    "NotFoundError",
+    "ConflictError",
+    "UnprocessableEntityError",
+    "RateLimitError",
+    "InternalServerError",
+    "ChatResponse",
+    "ChatStreamChunk",
+    "ModelInfo",
+    "HealthResponse",
+]

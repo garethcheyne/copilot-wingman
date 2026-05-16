@@ -19,7 +19,6 @@ import { Health } from "./resources/health.js";
 import { Models } from "./resources/models.js";
 import { Chat } from "./resources/chat.js";
 
-const DEFAULT_BASE_URL = "https://wingman.err403.com";
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_RETRIES = 2;
 
@@ -28,7 +27,11 @@ export type FetchLike = typeof fetch;
 export interface WingmanClientOptions {
   /** Wingman API key (`wm_...`). Falls back to `process.env.WINGMAN_API_KEY`. */
   apiKey?: string;
-  /** Base URL of the Wingman proxy. Defaults to https://wingman.err403.com */
+  /**
+   * Base URL of the Wingman proxy (required).
+   * Pass explicitly, e.g. `new Wingman({ apiKey, baseURL: 'https://your-host' })`,
+   * or set `WINGMAN_BASE_URL` in the environment.
+   */
   baseURL?: string;
   /** Per-request timeout in ms (default 60000). */
   timeout?: number;
@@ -87,7 +90,16 @@ export class BaseWingman {
       );
     }
     this.apiKey = apiKey;
-    this.baseURL = (opts.baseURL ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    const rawBaseURL =
+      opts.baseURL ??
+      (typeof process !== "undefined" ? process.env?.WINGMAN_BASE_URL : undefined);
+    if (!rawBaseURL) {
+      throw new Error(
+        "Wingman SDK: missing baseURL. Pass `new Wingman({ baseURL: '...' })` " +
+          "or set WINGMAN_BASE_URL in the environment."
+      );
+    }
+    this.baseURL = rawBaseURL.replace(/\/+$/, "");
     this.timeout = opts.timeout ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.defaultHeaders = { ...(opts.defaultHeaders ?? {}) };

@@ -1,18 +1,55 @@
 // Smoke test for @wingman/sdk against a live Wingman proxy.
 //
-// Usage:
-//   WINGMAN_API_KEY=wm_xxx node tests/smoke.mjs
-//   WINGMAN_API_KEY=wm_xxx WINGMAN_BASE_URL=http://localhost:3200 node tests/smoke.mjs
-//
-// Optional:
-//   WINGMAN_MODEL=claude-sonnet-4.6   pin the model (else first allowed)
+// Reads WINGMAN_API_KEY and WINGMAN_BASE_URL from the repo-root .env file
+// (or the process environment if already set). Both are required.
+
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import Wingman from "../dist/index.js";
 
-const apiKey = process.env.WINGMAN_API_KEY;
-const baseURL = process.env.WINGMAN_BASE_URL ?? "https://wingman.err403.com";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ENV_PATH = resolve(__dirname, "..", "..", "..", ".env");
+
+function loadDotEnv(path) {
+  try {
+    const text = readFileSync(path, "utf8");
+    for (const rawLine of text.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq === -1) continue;
+      const key = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      if (!(key in process.env)) process.env[key] = value;
+    }
+  } catch {
+    /* .env optional; env vars may already be set */
+  }
+}
+
+loadDotEnv(ENV_PATH);
+
+const apiKey =
+  process.env.WINGMAN_API_KEY ?? process.env.API_PROD_TESTING_KEY_01;
+const baseURL = process.env.WINGMAN_BASE_URL ?? process.env.PROD_URL;
 if (!apiKey) {
-  console.error("Set WINGMAN_API_KEY before running the smoke test.");
+  console.error(
+    "Set WINGMAN_API_KEY (or API_PROD_TESTING_KEY_01 in .env) before running the smoke test."
+  );
+  process.exit(2);
+}
+if (!baseURL) {
+  console.error(
+    "Set WINGMAN_BASE_URL (or PROD_URL in .env) before running the smoke test."
+  );
   process.exit(2);
 }
 

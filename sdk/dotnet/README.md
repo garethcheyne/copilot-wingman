@@ -42,6 +42,6 @@ await client.Models.ListAsync();
 - HttpClient-based; `IAsyncEnumerable<string>` for streaming
 - Error hierarchy mirroring the Node SDK (`WingmanException`, `ApiException`,
   `AuthenticationException`, `RateLimitException`, …)
-- Same default base URL: `https://wingman.err403.com`
+- BaseUrl is **required** — supply your Wingman host explicitly or set the `WINGMAN_BASE_URL` env var
 
 See [`../node/`](../node/) for the reference implementation in TypeScript.

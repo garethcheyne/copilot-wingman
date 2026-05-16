@@ -32,7 +32,7 @@ Key shared decisions:
 - **Streaming**: SSE; high-level `chat.stream()` helper emits incremental text deltas in addition to the raw async iterator.
 - **Retries**: default 2, exponential backoff, respect `Retry-After`, retry on `408 / 409 / 429 / 5xx` and network errors.
 - **Timeout**: 60s default per request (override per-call).
-- **Base URL**: defaults to `https://wingman.err403.com`; override for local dev.
+- **Base URL**: required; pass your Wingman proxy host explicitly (e.g. `https://wingman.example.com` or `http://localhost:3200`).
 - **Multi-turn**: handled server-side via `sessionKey`; the SDK does not maintain conversation state.
 
 ## Endpoints covered (v0.1)
