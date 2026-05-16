@@ -92,6 +92,54 @@ Open [http://localhost:3000](http://localhost:3000) and follow the guided setup:
 2. **Connect GitHub** — authenticate via GitHub Device OAuth flow
 3. **Start chatting** — you're ready to go
 
+## Reverse Proxy Setup
+
+If you're running Wingman behind a reverse proxy (nginx, Caddy, etc.), update `NEXT_PUBLIC_PROXY_URL` in `.env` to the public URL your browser will use to reach the proxy API:
+
+```bash
+# Example: nginx forwards /api/* to the proxy container
+NEXT_PUBLIC_PROXY_URL=https://wingman.yourdomain.com
+
+# Example: proxy on a subdomain
+NEXT_PUBLIC_PROXY_URL=https://api.yourdomain.com
+```
+
+> **Important:** `NEXT_PUBLIC_PROXY_URL` is baked into the client-side JavaScript at build time. After changing it, rebuild the web container:
+> ```bash
+> docker compose up --build wingman-web -d
+> ```
+
+Example nginx config:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name wingman.yourdomain.com;
+
+    # Web UI
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Proxy API
+    location /api/ {
+        proxy_pass http://localhost:3200/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Connection '';
+        chunked_transfer_encoding on;
+        proxy_buffering off;       # required for streaming responses
+    }
+}
+```
+
 ## Local Development
 
 ### Proxy (Express API)
@@ -123,6 +171,7 @@ npm run dev          # starts on port 3000
 | `PROXY_PORT` | Proxy API port | `3200` |
 | `POSTGRES_PORT` | PostgreSQL host port | `5440` |
 | `REDIS_PORT` | Redis host port | `6379` |
+| `NEXT_PUBLIC_PROXY_URL` | Public URL the browser uses to reach the proxy API | `http://localhost:3200` |
 | `INTERNAL_API_KEY` | Shared secret between web and proxy | — |
 | `ENCRYPTION_KEY` | 32-byte hex key for encrypting GitHub tokens at rest | — |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://wingman:password@localhost:5440/wingman` |

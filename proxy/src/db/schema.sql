@@ -75,26 +75,6 @@ CREATE TABLE IF NOT EXISTS app_settings (
 INSERT INTO app_settings (key, value) VALUES ('default_model', 'gpt-4o')
 ON CONFLICT (key) DO NOTHING;
 
--- Per-request telemetry — one row per /api/chat call (success or error)
-CREATE TABLE IF NOT EXISTS request_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID REFERENCES chat_sessions(id) ON DELETE SET NULL,
-    api_key_id UUID REFERENCES api_keys(id) ON DELETE SET NULL,
-    source VARCHAR(10) NOT NULL DEFAULT 'ui',  -- 'ui' (web admin) or 'api_key' (external)
-    model VARCHAR(100),
-    prompt_tokens INT,
-    completion_tokens INT,
-    latency_ms INT,
-    status VARCHAR(20) NOT NULL CHECK (status IN ('success', 'error')),
-    error_message TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_request_log_created ON request_log(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_request_log_session ON request_log(session_id);
-CREATE INDEX IF NOT EXISTS idx_request_log_model ON request_log(model);
-CREATE INDEX IF NOT EXISTS idx_request_log_api_key ON request_log(api_key_id);
-
 -- API keys (for external service access)
 CREATE TABLE IF NOT EXISTS api_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -115,6 +95,26 @@ CREATE TABLE IF NOT EXISTS api_keys (
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_keys_prefix ON api_keys(key_prefix);
+
+-- Per-request telemetry — one row per /api/chat call (success or error)
+CREATE TABLE IF NOT EXISTS request_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID REFERENCES chat_sessions(id) ON DELETE SET NULL,
+    api_key_id UUID REFERENCES api_keys(id) ON DELETE SET NULL,
+    source VARCHAR(10) NOT NULL DEFAULT 'ui',  -- 'ui' (web admin) or 'api_key' (external)
+    model VARCHAR(100),
+    prompt_tokens INT,
+    completion_tokens INT,
+    latency_ms INT,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('success', 'error')),
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_request_log_created ON request_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_request_log_session ON request_log(session_id);
+CREATE INDEX IF NOT EXISTS idx_request_log_model ON request_log(model);
+CREATE INDEX IF NOT EXISTS idx_request_log_api_key ON request_log(api_key_id);
 
 -- Upstream models — tracks what GitHub Copilot offers us
 CREATE TABLE IF NOT EXISTS upstream_models (
