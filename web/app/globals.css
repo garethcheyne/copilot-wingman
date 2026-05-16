@@ -363,3 +363,53 @@
 .scroll-sleek::-webkit-scrollbar-thumb:hover {
   background: hsl(220 13% 24%);
 }
+
+/* ── Electric animated border ── */
+@property --electric-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes electric-spin {
+  to { --electric-angle: 360deg; }
+}
+
+.electric-border {
+  --electric-speed: 3s;
+  position: relative;
+  border-radius: 12px;
+  background: conic-gradient(
+    from var(--electric-angle),
+    hsl(264 80% 60%),
+    hsl(200 100% 60%),
+    hsl(160 95% 55%),
+    hsl(264 80% 60%),
+    hsl(320 90% 60%),
+    hsl(264 80% 60%)
+  );
+  animation: electric-spin var(--electric-speed) linear infinite;
+  box-shadow:
+    0 0 15px -3px hsl(264 80% 55% / 0.5),
+    0 0 30px -5px hsl(200 100% 55% / 0.3);
+}
+
+/* Danger state — expired / disconnected */
+.electric-border.electric-danger {
+  background: conic-gradient(
+    from var(--electric-angle),
+    hsl(0 85% 55%),
+    hsl(25 95% 55%),
+    hsl(0 85% 55%),
+    hsl(345 80% 50%),
+    hsl(15 90% 55%),
+    hsl(0 85% 55%)
+  );
+  box-shadow:
+    0 0 15px -3px hsl(0 85% 55% / 0.5),
+    0 0 30px -5px hsl(25 95% 55% / 0.3);
+}
+
+.electric-border > * {
+  border-radius: 10px;
+}

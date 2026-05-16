@@ -1,7 +1,8 @@
-import { Settings } from "lucide-react";
 import { AuthGate } from "@/components/auth-gate";
 import { SessionProvider } from "@/components/session-provider";
 import { SessionSidebar } from "@/components/session-sidebar";
+import { ConnectionProvider } from "@/components/connection-provider";
+import { ElectricBorder } from "@/components/electric-border";
 
 export default function AppLayout({
   children,
@@ -10,14 +11,14 @@ export default function AppLayout({
 }) {
   return (
     <AuthGate>
+    <ConnectionProvider>
     <SessionProvider>
-    <div className="flex h-screen">
+    <ElectricBorder>
       <SessionSidebar />
-
-      {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
-    </div>
+    </ElectricBorder>
     </SessionProvider>
+    </ConnectionProvider>
     </AuthGate>
   );
 }

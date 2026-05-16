@@ -13,6 +13,8 @@ import {
   BookOpen,
 } from "lucide-react";
 import { AuthGate } from "@/components/auth-gate";
+import { ConnectionProvider } from "@/components/connection-provider";
+import { ElectricBorder } from "@/components/electric-border";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -32,7 +34,8 @@ export default function AdminLayout({
 
   return (
     <AuthGate>
-    <div className="flex h-screen">
+    <ConnectionProvider>
+    <ElectricBorder>
       <aside className="w-60 border-r border-border bg-sidebar/60 backdrop-blur-xl flex flex-col relative">
         {/* right-edge glow */}
         <div
@@ -137,7 +140,8 @@ export default function AdminLayout({
       <main className="flex-1 overflow-auto scroll-sleek">
         <div className="px-8 py-10 max-w-6xl">{children}</div>
       </main>
-    </div>
+    </ElectricBorder>
+    </ConnectionProvider>
     </AuthGate>
   );
 }
