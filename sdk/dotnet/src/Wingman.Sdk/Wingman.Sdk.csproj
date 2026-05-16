@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Wingman.Sdk</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>Wingman</Authors>
+    <Description>Official .NET SDK for the Wingman chat proxy (scaffold).</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RootNamespace>Wingman</RootNamespace>
+  </PropertyGroup>
+
+</Project>
