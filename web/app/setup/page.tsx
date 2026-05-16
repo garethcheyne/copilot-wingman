@@ -152,15 +152,16 @@ export default function SetupPage() {
                 htmlFor="username"
                 className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground"
               >
-                Username
+                Email
               </Label>
               <FieldWithGlow>
                 <Input
                   id="username"
+                  type="email"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
-                  autoComplete="username"
+                  placeholder="you@example.com"
+                  autoComplete="email"
                   autoFocus
                   required
                   className="relative bg-card/80 backdrop-blur-md border-border/70 focus-visible:ring-primary/40 focus-visible:border-primary/40 font-mono"
