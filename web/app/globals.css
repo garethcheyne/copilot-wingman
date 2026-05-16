@@ -137,10 +137,17 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body {
+    /* Disable iOS double-tap zoom + browser delay on taps. */
+    touch-action: manipulation;
+    /* Kill the grey tap highlight that screams "this is a website". */
+    -webkit-tap-highlight-color: transparent;
+    /* Stop horizontal rubber-band even in a normal browser tab. */
+    overscroll-behavior-x: none;
+  }
   body {
     @apply bg-background text-foreground;
-    /* Modern dynamic viewport — collapses correctly when iOS shows/hides
-       the URL bar so 100vh content no longer overshoots the screen. */
     min-height: 100dvh;
     /* Body stays edge-to-edge — the electric border and brand visuals run
        to the device glass. Safe-area insets are applied on inner content
@@ -148,6 +155,44 @@
   }
   html {
     @apply font-sans;
+  }
+
+  /* ── Installed PWA: lock the shell like a real app ──────────────────────
+     When the user has added Wingman to their home screen and launches it
+     from the icon, kill all the "this is a website" tells:
+       • no page-level scrolling (each route scrolls its own region)
+       • no rubber-band overscroll
+       • no long-press share/copy callout on UI chrome
+       • no accidental text selection while dragging
+     In a regular browser tab none of this applies — pages scroll normally. */
+  @media (display-mode: standalone), (display-mode: fullscreen) {
+    html,
+    body {
+      height: 100dvh;
+      overflow: hidden;
+      overscroll-behavior: none;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+    }
+    body {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    /* Re-allow selection / copy on real content. */
+    input,
+    textarea,
+    [contenteditable="true"],
+    .selectable,
+    pre,
+    code,
+    .chat-markdown,
+    .chat-markdown * {
+      -webkit-user-select: text;
+      user-select: text;
+      -webkit-touch-callout: default;
+    }
   }
 }
 

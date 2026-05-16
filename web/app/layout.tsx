@@ -51,6 +51,13 @@ export const viewport: Viewport = {
   ],
   width: "device-width",
   initialScale: 1,
+  // Lock zoom — critical for a PWA to feel like an app. Browsers ignore
+  // these inside Safari since iOS 10 for accessibility, BUT installed
+  // PWAs (display-mode: standalone) honour them, which is the only place
+  // we actually care about "app feel".
+  maximumScale: 1,
+  minimumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   colorScheme: "dark light",
 };
