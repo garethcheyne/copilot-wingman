@@ -34,8 +34,13 @@ export const metadata: Metadata = {
   },
   formatDetection: { telephone: false },
   icons: {
-    icon: "/wingman-ai.png",
-    apple: "/wingman-ai.png",
+    icon: [
+      { url: "/img/favicon.ico", sizes: "any" },
+      { url: "/img/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/img/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: { url: "/img/apple-touch-icon.png", sizes: "180x180" },
+    shortcut: "/img/favicon.ico",
   },
 };
 

@@ -14,6 +14,10 @@ import {
   KeyRound,
   Settings,
   Package,
+  FileJson,
+  Terminal,
+  Heart,
+  Network,
 } from "lucide-react";
 import { AuthGate } from "@/components/auth-gate";
 import { ConnectionProvider } from "@/components/connection-provider";
@@ -25,7 +29,14 @@ import {
   useMobileNav,
 } from "@/components/mobile-nav";
 
-type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  /** Only mark active when the URL matches exactly (no `startsWith`). */
+  exact?: boolean;
+  children?: NavItem[];
+};
 type NavGroup = { label: string; items: NavItem[] };
 
 const navGroups: NavGroup[] = [
@@ -51,13 +62,124 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Reference",
-    items: [{ href: "/admin/docs", label: "API Docs", icon: BookOpen }],
+    items: [
+      {
+        href: "/admin/docs",
+        label: "API Docs",
+        icon: BookOpen,
+        children: [
+          {
+            href: "/admin/docs",
+            label: "Overview",
+            icon: BookOpen,
+            exact: true,
+          },
+          { href: "/admin/docs/spec", label: "Interactive Spec", icon: FileJson },
+          { href: "/admin/docs/chat", label: "Chat", icon: Terminal },
+          { href: "/admin/docs/models", label: "Models", icon: Cpu },
+          { href: "/admin/docs/health", label: "Health", icon: Heart },
+          {
+            href: "/admin/docs/reverse-proxy",
+            label: "Reverse-Proxy",
+            icon: Network,
+          },
+        ],
+      },
+    ],
   },
   {
     label: "System",
     items: [{ href: "/admin/system", label: "Version & Updates", icon: Package }],
   },
 ];
+
+function isItemActive(item: NavItem, pathname: string | null): boolean {
+  if (item.exact) return pathname === item.href;
+  if (item.href === "/admin") return pathname === "/admin";
+  return pathname?.startsWith(item.href) ?? false;
+}
+
+function NavLink({
+  item,
+  pathname,
+  depth = 0,
+}: {
+  item: NavItem;
+  pathname: string | null;
+  depth?: number;
+}) {
+  const active = isItemActive(item, pathname);
+  const inSubtree =
+    !!item.children && !!pathname && pathname.startsWith(item.href);
+  const showChildren = inSubtree;
+
+  return (
+    <>
+      <Link
+        href={item.href}
+        className={`group relative flex items-center gap-3 rounded-md text-sm transition-colors min-h-10 ${
+          depth === 0 ? "px-3 py-2.5 min-h-11" : "pl-9 pr-3 py-2 text-[13px]"
+        } ${
+          active
+            ? "text-foreground bg-sidebar-accent"
+            : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/60 active:bg-sidebar-accent/80"
+        }`}
+      >
+        {/* Active accent bar */}
+        <span
+          aria-hidden
+          className={`absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full transition-all ${
+            active
+              ? "bg-copilot-purple shadow-[0_0_8px_hsl(258_90%_66%/0.8)]"
+              : "bg-transparent group-hover:bg-border"
+          }`}
+        />
+
+        {depth === 0 ? (
+          <item.icon
+            className={`w-4 h-4 transition-colors ${
+              active ? "text-copilot-purple" : ""
+            }`}
+            strokeWidth={active ? 2.2 : 1.8}
+          />
+        ) : (
+          <span
+            aria-hidden
+            className={`w-1 h-1 rounded-full transition-colors ${
+              active ? "bg-copilot-purple" : "bg-border group-hover:bg-muted-foreground"
+            }`}
+          />
+        )}
+
+        <span className={active ? "font-medium" : ""}>{item.label}</span>
+
+        {active && depth === 0 && (
+          <span className="ml-auto font-mono text-[9px] tracking-widest text-copilot-purple/80">
+            ●
+          </span>
+        )}
+      </Link>
+
+      {showChildren && item.children && (
+        <div className="space-y-0.5 mt-0.5 mb-1 relative">
+          {/* Vertical thread linking the children */}
+          <span
+            aria-hidden
+            className="absolute left-5 top-1 bottom-1 w-px bg-border/60"
+          />
+          {item.children.map((child) => (
+            <NavLink
+              key={child.href + child.label}
+              item={child}
+              pathname={pathname}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
 
 function AdminNavBody() {
   const pathname = usePathname();
@@ -102,45 +224,9 @@ function AdminNavBody() {
               />
             </div>
             <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const active =
-                  item.href === "/admin"
-                    ? pathname === "/admin"
-                    : pathname?.startsWith(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors min-h-11 ${
-                      active
-                        ? "text-foreground bg-sidebar-accent"
-                        : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/60 active:bg-sidebar-accent/80"
-                    }`}
-                  >
-                    {/* Active accent bar */}
-                    <span
-                      aria-hidden
-                      className={`absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r-full transition-all ${
-                        active
-                          ? "bg-copilot-purple shadow-[0_0_8px_hsl(258_90%_66%/0.8)]"
-                          : "bg-transparent group-hover:bg-border"
-                      }`}
-                    />
-                    <item.icon
-                      className={`w-4 h-4 transition-colors ${
-                        active ? "text-copilot-purple" : ""
-                      }`}
-                      strokeWidth={active ? 2.2 : 1.8}
-                    />
-                    <span className={active ? "font-medium" : ""}>{item.label}</span>
-                    {active && (
-                      <span className="ml-auto font-mono text-[9px] tracking-widest text-copilot-purple/80">
-                        ●
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+              {group.items.map((item) => (
+                <NavLink key={item.href} item={item} pathname={pathname} />
+              ))}
             </div>
           </div>
         ))}
@@ -177,11 +263,20 @@ function AdminNavBody() {
 
 function AdminMobileTopBar() {
   const pathname = usePathname();
-  const active = navGroups
-    .flatMap((g) => g.items)
-    .find((i) =>
+  // Walk parents + children to find the deepest matching item for the title.
+  const allItems: NavItem[] = navGroups.flatMap((g) =>
+    g.items.flatMap((i) => (i.children ? [i, ...i.children] : [i])),
+  );
+  const exact = allItems.find(
+    (i) => i.exact && pathname === i.href,
+  );
+  const matches = allItems
+    .filter((i) => !i.exact)
+    .filter((i) =>
       i.href === "/admin" ? pathname === "/admin" : pathname?.startsWith(i.href),
-    );
+    )
+    .sort((a, b) => b.href.length - a.href.length);
+  const active = exact ?? matches[0];
   return (
     <header className="lg:hidden flex items-center gap-3 h-14 px-4 border-b border-border/70 bg-background/70 backdrop-blur-md shrink-0">
       <MobileNavTrigger label="Open admin navigation" />

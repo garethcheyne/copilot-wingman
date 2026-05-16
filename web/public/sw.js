@@ -1,7 +1,15 @@
 /* Wingman service worker — push notifications + offline shell */
 
-const CACHE_VERSION = "wingman-v1";
-const SHELL_ASSETS = ["/", "/chat", "/wingman-ai.png", "/manifest.webmanifest"];
+const CACHE_VERSION = "wingman-v2";
+const SHELL_ASSETS = [
+  "/",
+  "/chat",
+  "/manifest.webmanifest",
+  "/img/icon-192.png",
+  "/img/icon-512.png",
+  "/img/apple-touch-icon.png",
+  "/img/favicon.ico",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -77,8 +85,8 @@ self.addEventListener("push", (event) => {
   }
   const options = {
     body: data.body,
-    icon: data.icon || "/wingman-ai.png",
-    badge: data.badge || "/wingman-ai.png",
+    icon: data.icon || "/img/icon-192.png",
+    badge: data.badge || "/img/icon-192.png",
     vibrate: [80, 40, 80],
     tag: data.tag || "wingman",
     renotify: true,
@@ -113,8 +121,8 @@ self.addEventListener("message", (event) => {
   const { title, body, url } = event.data.payload || {};
   self.registration.showNotification(title || "Wingman", {
     body: body || "",
-    icon: "/wingman-ai.png",
-    badge: "/wingman-ai.png",
+    icon: "/img/icon-192.png",
+    badge: "/img/icon-192.png",
     tag: "wingman-local",
     data: { url: url || "/chat" },
   });
