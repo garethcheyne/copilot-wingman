@@ -192,8 +192,8 @@ function AdminNavBody() {
         className="absolute inset-y-0 right-0 w-px bg-linear-to-b from-transparent via-accent/30 to-transparent pointer-events-none hidden lg:block"
       />
 
-      {/* Header */}
-      <div className="px-4 pt-5 pb-4">
+      {/* Header — pt-safe paints under iOS chrome on standalone iPhone PWAs. */}
+      <div className="px-4 pb-4 pt-[max(env(safe-area-inset-top),1.25rem)]">
         <div className="flex items-center gap-3">
           <Image
             src="/wingman-ai.png"
@@ -278,7 +278,7 @@ function AdminMobileTopBar() {
     .sort((a, b) => b.href.length - a.href.length);
   const active = exact ?? matches[0];
   return (
-    <header className="lg:hidden flex items-center gap-3 h-14 px-4 border-b border-border/70 bg-background/70 backdrop-blur-md shrink-0">
+    <header className="lg:hidden pt-safe flex items-center gap-3 min-h-14 px-4 border-b border-border/70 bg-background/70 backdrop-blur-xl shrink-0">
       <MobileNavTrigger label="Open admin navigation" />
       <div className="flex items-center gap-2 min-w-0">
         <Image

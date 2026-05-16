@@ -59,7 +59,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const refreshSessions = useCallback(async () => {
     try {
-      const res = await adminFetch("/api/admin/sessions");
+      // Chat sidebar only shows conversations started from THIS UI. API-key
+      // driven sessions are auditable from /admin/sessions, not here.
+      const res = await adminFetch("/api/admin/sessions?source=ui");
       if (!res.ok) return;
       const data = await res.json();
       const list: SessionInfo[] = (data.sessions || []).map((s: any) => ({

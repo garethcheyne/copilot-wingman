@@ -27,3 +27,4 @@ redis-data/
 # Misc
 *.log
 npm-debug.log*
+resources/anthropic-sdk-typescript/

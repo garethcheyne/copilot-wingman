@@ -16,18 +16,13 @@ export function ElectricBorder({ children }: { children: React.ReactNode }) {
       {/*
         Outer .electric-border sits at the literal device edge (the conic
         gradient glow hugs the iPhone's rounded corners). The inner shell
-        below applies safe-area insets so the status bar / Dynamic Island
-        / home indicator never overlap real content.
+        applies horizontal + bottom safe-area insets only. The top inset is
+        deliberately omitted so each route's top bar (chat header, sidebar
+        header, admin mobile bar) can extend its OWN background up under the
+        Dynamic Island / status bar — that's what reads as native top chrome,
+        instead of a translucent gap sitting between iOS chrome and the app.
       */}
-      <div
-        className="flex flex-col h-full rounded-[inherit] bg-background overflow-hidden"
-        style={{
-          paddingTop: "env(safe-area-inset-top)",
-          paddingRight: "env(safe-area-inset-right)",
-          paddingBottom: "env(safe-area-inset-bottom)",
-          paddingLeft: "env(safe-area-inset-left)",
-        }}
-      >
+      <div className="flex flex-col h-full rounded-[inherit] bg-background overflow-hidden pr-safe pb-safe pl-safe">
         {/* Warning banner */}
         {isDanger && message && (
           <div className="flex items-center gap-2 px-4 py-2 bg-destructive/10 border-b border-destructive/30 text-destructive text-sm shrink-0">

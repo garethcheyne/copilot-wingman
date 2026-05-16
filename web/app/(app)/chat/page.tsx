@@ -272,8 +272,10 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* Header */}
-      <header className="h-14 border-b border-border/70 flex items-center px-3 sm:px-6 shrink-0 justify-between gap-2 bg-background/40 backdrop-blur-md relative z-10">
+      {/* Header — defensive safe-area padding so the Dynamic Island / iOS
+          status bar never eats the title or model picker even when running in
+          a regular Safari tab (outside the installed PWA shell). */}
+      <header className="pt-safe border-b border-border/70 flex items-center px-3 sm:px-6 shrink-0 justify-between gap-2 bg-background/70 backdrop-blur-xl relative z-10 min-h-14">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <MobileNavTrigger label="Open chat history" />
           <div className="flex items-center gap-2 min-w-0">
@@ -340,28 +342,44 @@ export default function ChatPage() {
               className="absolute top-12 left-1/2 -translate-x-1/2 w-120 h-120 bg-orb-copilot animate-orb-drift pointer-events-none opacity-70"
             />
 
-            <div className="relative z-10 flex flex-col items-center gap-6 stagger-children">
-              <div className="relative">
-                <div aria-hidden className="absolute inset-0 -m-6 rounded-full bg-copilot-purple/30 blur-2xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col items-center gap-8 sm:gap-10 stagger-children w-full">
+              {/* Brand mark — asymmetric: oversized logo bleeds off the left,
+                  wordmark sits inline on the right and stacks tight so the
+                  two read as one composition rather than icon-over-label. */}
+              <div className="relative w-full max-w-xl flex items-center justify-center gap-1 sm:gap-3">
+                {/* Aurora bloom anchored to the logo */}
+                <div
+                  aria-hidden
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-copilot-purple/30 blur-3xl pointer-events-none"
+                />
+                <div
+                  aria-hidden
+                  className="absolute left-12 top-1/2 -translate-y-1/2 w-40 h-40 sm:w-56 sm:h-56 rounded-full bg-primary/25 blur-2xl pointer-events-none mix-blend-screen"
+                />
+
+                {/* Logo — large, partially bleeds off the left edge */}
                 <Image
                   src="/wingman-ai.png"
                   alt="Wingman"
-                  width={120}
-                  height={120}
-                  className="relative drop-shadow-[0_8px_32px_hsl(258_90%_66%/0.5)] w-20 h-20 sm:w-30 sm:h-30"
+                  width={400}
+                  height={400}
+                  className="relative shrink-0 w-44 h-44 sm:w-56 sm:h-56 -ml-8 sm:-ml-6 object-contain mix-blend-screen drop-shadow-[0_14px_40px_hsl(258_90%_66%/0.55)] select-none pointer-events-none"
                   priority
                 />
+
+                {/* Wordmark — inline, stacked tight, gradient on the brand word */}
+                <div className="relative flex-1 min-w-0 -ml-2 sm:ml-0">
+                  <p className="label-mono text-primary/80 mb-1 sm:mb-1.5">// Ready</p>
+                  <h2 className="font-display font-bold tracking-tight leading-[0.85]">
+                    <span className="block text-4xl sm:text-6xl text-foreground/90">Ask</span>
+                    <span className="block text-5xl sm:text-7xl text-copilot-gradient">Wingman</span>
+                  </h2>
+                </div>
               </div>
 
-              <div className="text-center space-y-2 sm:space-y-3">
-                <p className="label-mono text-primary/80">// Ready</p>
-                <h2 className="text-3xl sm:text-5xl font-display font-bold tracking-tight leading-none">
-                  Ask <span className="text-copilot-gradient font-display font-bold">Wingman</span>
-                </h2>
-                <p className="text-muted-foreground text-xs sm:text-sm max-w-md mx-auto px-2">
-                  Copilot proxy &middot; streaming responses &middot; full model catalog
-                </p>
-              </div>
+              <p className="text-muted-foreground text-xs sm:text-sm max-w-md text-center px-2 -mt-2">
+                Copilot proxy &middot; streaming responses &middot; full model catalog
+              </p>
 
               {/* Suggestion grid — command-palette style */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-xl mt-2">

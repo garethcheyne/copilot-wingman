@@ -30,8 +30,9 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
       {/* edge glow */}
       <div aria-hidden className="absolute inset-y-0 right-0 w-px bg-linear-to-b from-transparent via-primary/30 to-transparent pointer-events-none hidden lg:block" />
 
-      {/* Header */}
-      <div className="px-4 pt-5 pb-4">
+      {/* Header — pt-safe paints the brand area under the Dynamic Island
+          so the sidebar reads as native top chrome on standalone iPhones. */}
+      <div className="px-4 pb-4 pt-[max(env(safe-area-inset-top),1.25rem)]">
         <div className="flex items-center gap-3">
           <Image
             src="/wingman-ai.png"
