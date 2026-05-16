@@ -483,7 +483,11 @@
 
 .electric-border {
   --electric-speed: 3s;
-  position: relative;
+  /* No position declared — positioning is controlled by Tailwind classes
+     on the JSX (currently `fixed inset-0` so the ribbon pins to the
+     viewport's literal edges). Declaring `position: relative` here would
+     win over the Tailwind `fixed` class because of CSS source order,
+     which kept the element from filling the viewport on desktop. */
   border-radius: 12px;
   background: conic-gradient(
     from var(--electric-angle),
