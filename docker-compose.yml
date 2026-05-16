@@ -6,7 +6,7 @@ services:
       context: ./web
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_PROXY_URL=http://localhost:${PROXY_PORT:-3200}
+        - NEXT_PUBLIC_PROXY_URL=${NEXT_PUBLIC_PROXY_URL:-http://localhost:3200}
         - NEXT_PUBLIC_API_KEY=${INTERNAL_API_KEY}
     container_name: wingman-web
     ports:
