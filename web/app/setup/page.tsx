@@ -48,7 +48,7 @@ export default function SetupPage() {
   const meetsMatch = confirmPassword.length > 0 && password === confirmPassword;
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-[1.1fr_1fr]">
+    <div className="min-h-dvh grid lg:grid-cols-[1.1fr_1fr]">
       <BrandPanel
         status="First Run · Configuration"
         statusAccent="accent"

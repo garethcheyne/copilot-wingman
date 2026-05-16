@@ -31,7 +31,7 @@ export default function Home() {
     : "Loading Mission Control";
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+    <div className="min-h-dvh flex items-center justify-center relative overflow-hidden">
       {/* Brand atmosphere */}
       <div aria-hidden className="absolute inset-0 bg-mesh-copilot opacity-60 pointer-events-none" />
       <div

@@ -11,7 +11,7 @@ export function ElectricBorder({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className={`electric-border h-screen p-[3px] ${isDanger ? "electric-danger" : ""}`}
+      className={`electric-border h-dvh p-[3px] ${isDanger ? "electric-danger" : ""}`}
     >
       <div className="flex flex-col h-full rounded-[inherit] bg-background overflow-hidden">
         {/* Warning banner */}

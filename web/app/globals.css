@@ -139,10 +139,43 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Respect iOS notch / Android display cutout / iPad home indicator.
+       Atmosphere divs are position:fixed inset-0 so backgrounds still
+       extend to the device edges; only content is inset. */
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    /* Modern dynamic viewport — collapses correctly when iOS shows/hides
+       the URL bar so 100vh content no longer overshoots the screen. */
+    min-height: 100dvh;
   }
   html {
     @apply font-sans;
   }
+}
+
+/* Safe-area utilities for components that need to add the inset on top
+   of their own padding (chat input bar, mobile drawers, etc.). */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+@utility px-safe {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+@utility py-safe {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* ─── Mission Control atmosphere ────────────────────────────────── */

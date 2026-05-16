@@ -32,7 +32,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-[1.1fr_1fr]">
+    <div className="min-h-dvh grid lg:grid-cols-[1.1fr_1fr]">
       <BrandPanel
         status="Mission Control · Standby"
         statusAccent="green"
