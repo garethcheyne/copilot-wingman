@@ -11,19 +11,26 @@ export function ElectricBorder({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className={`electric-border h-lvh p-[3px] ${isDanger ? "electric-danger" : ""}`}
+      className={`electric-border fixed inset-0 p-[3px] flex flex-col ${isDanger ? "electric-danger" : ""}`}
     >
       {/*
-        Outer .electric-border sits at the literal device edge (the conic
-        gradient glow hugs the iPhone's rounded corners). The inner shell
-        applies ONLY horizontal safe-area insets (landscape sensor clusters).
-        Top + bottom insets are deliberately omitted so each route's top bar
-        and bottom bar can extend their OWN backgrounds up under the Dynamic
-        Island and down under the home indicator — that's what reads as
-        native edge-to-edge chrome, instead of translucent gaps sitting
-        between iOS chrome and the app.
+        Outer .electric-border is pinned with fixed + inset-0 so it always
+        reaches the device's literal top + bottom edges on iOS — viewport
+        height units (dvh/lvh/svh) all have quirks where they sometimes
+        exclude the safe-area zones (Dynamic Island, home indicator), and
+        pinning is the only bulletproof way. Outer is flex-col so the inner
+        shell can use flex-1 (instead of h-full) and dodge the percentage-
+        height resolution issue that fixed-position parents would otherwise
+        cause for children that use h-full.
+
+        Inner shell applies ONLY horizontal safe-area insets (landscape
+        sensor clusters). Top + bottom insets are deliberately omitted so
+        each route's top bar and bottom bar can extend their OWN backgrounds
+        up under the Dynamic Island and down under the home indicator —
+        that's what reads as native edge-to-edge chrome, instead of
+        translucent gaps sitting between iOS chrome and the app.
       */}
-      <div className="flex flex-col h-full rounded-[inherit] bg-background overflow-hidden pr-safe pl-safe">
+      <div className="flex-1 min-h-0 flex flex-col rounded-[inherit] bg-background overflow-hidden pr-safe pl-safe">
         {/* Warning banner */}
         {isDanger && message && (
           <div className="flex items-center gap-2 px-4 py-2 bg-destructive/10 border-b border-destructive/30 text-destructive text-sm shrink-0">

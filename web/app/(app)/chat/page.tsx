@@ -275,7 +275,7 @@ export default function ChatPage() {
       {/* Header — defensive safe-area padding so the Dynamic Island / iOS
           status bar never eats the title or model picker even when running in
           a regular Safari tab (outside the installed PWA shell). */}
-      <header className="pt-safe border-b border-border/70 flex items-center px-3 sm:px-6 shrink-0 justify-between gap-2 bg-background/70 backdrop-blur-xl relative z-10 min-h-14">
+      <header className="pt-[max(env(safe-area-inset-top),0.75rem)] border-b border-border/70 flex items-center px-3 sm:px-6 shrink-0 justify-between gap-2 bg-background/70 backdrop-blur-xl relative z-10 min-h-14">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <MobileNavTrigger label="Open chat history" />
           <div className="flex items-center gap-2 min-w-0">
