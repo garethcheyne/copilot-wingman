@@ -44,11 +44,11 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
           <div className="leading-tight">
             <p className="text-sm font-semibold tracking-tight">Wingman</p>
             <p
-              className="font-mono text-[10px] text-muted-foreground tracking-[0.15em] uppercase"
+              className="font-mono text-[8px] text-muted-foreground tracking-[0.15em] uppercase"
               translate="no"
               suppressHydrationWarning
             >
-              {APP_TAGLINE} · <span translate="no" suppressHydrationWarning>v{APP_VERSION}</span>
+              {APP_TAGLINE}
             </p>
           </div>
         </div>
@@ -108,11 +108,10 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
                       onItemSelect?.();
                     }
                   }}
-                  className={`group w-full text-left px-3 py-3 rounded-lg text-sm transition-colors flex items-start gap-2.5 cursor-pointer min-h-12 ${
-                    isActive
+                  className={`group w-full text-left px-3 py-3 rounded-lg text-sm transition-colors flex items-start gap-2.5 cursor-pointer min-h-12 ${isActive
                       ? "bg-secondary/70 border border-primary/30"
                       : "hover:bg-secondary/40 active:bg-secondary/60 border border-transparent"
-                  }`}
+                    }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                   <div className="flex-1 min-w-0">
