@@ -139,16 +139,12 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Respect iOS notch / Android display cutout / iPad home indicator.
-       Atmosphere divs are position:fixed inset-0 so backgrounds still
-       extend to the device edges; only content is inset. */
-    padding-top: env(safe-area-inset-top);
-    padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
     /* Modern dynamic viewport — collapses correctly when iOS shows/hides
        the URL bar so 100vh content no longer overshoots the screen. */
     min-height: 100dvh;
+    /* Body stays edge-to-edge — the electric border and brand visuals run
+       to the device glass. Safe-area insets are applied on inner content
+       containers (form columns, electric-border inner shell, etc). */
   }
   html {
     @apply font-sans;
@@ -457,6 +453,22 @@
   box-shadow:
     0 0 15px -3px hsl(264 80% 55% / 0.5),
     0 0 30px -5px hsl(200 100% 55% / 0.3);
+}
+
+/* On touch devices the screen has rounded hardware corners. Bump the
+   border-radius so the glowing frame visually hugs the curve instead of
+   looking like a sharp rectangle inside it. env(safe-area-inset-top) is
+   non-zero on notched/Dynamic-Island iPhones and gives a free proxy for
+   the corner radius (≈47px on iPhone 14/15/16 Pro). */
+@media (pointer: coarse) and (max-width: 540px) {
+  .electric-border {
+    border-radius: max(env(safe-area-inset-top), 38px);
+  }
+}
+@media (display-mode: standalone) and (max-width: 540px) {
+  .electric-border {
+    border-radius: max(env(safe-area-inset-top), 44px);
+  }
 }
 
 /* Danger state — expired / disconnected */
