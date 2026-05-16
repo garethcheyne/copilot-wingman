@@ -143,8 +143,10 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
 
       <div className="rail-divider mx-3" />
 
-      {/* Footer — live status */}
-      <div className="p-3 space-y-2">
+      {/* Footer — live status. pb-safe keeps the sign-out button clear of
+          the iOS home indicator now that ElectricBorder no longer pads the
+          bottom of the inner shell. */}
+      <div className="px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-2">
         <div className="flex items-center justify-between px-2 py-2 rounded-md bg-card/50 border border-border/50">
           <div className="flex items-center gap-2.5">
             <span className="pulse-ring text-copilot-green">

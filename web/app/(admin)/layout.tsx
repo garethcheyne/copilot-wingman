@@ -234,8 +234,9 @@ function AdminNavBody() {
 
       <div className="rail-divider mx-3" />
 
-      {/* Footer — system status */}
-      <div className="p-3 space-y-2">
+      {/* Footer — system status. pb-safe keeps the back-to-chat link clear
+          of the iOS home indicator. */}
+      <div className="px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-2">
         <div className="flex items-center justify-between px-3 py-2 rounded-md bg-card/50 border border-border/50">
           <div className="flex items-center gap-2.5">
             <span className="pulse-ring text-copilot-green">
@@ -321,7 +322,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <AdminMobileTopBar />
         <main className="flex-1 overflow-auto scroll-sleek">
-          <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10 max-w-6xl">
+          <div className="px-4 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))] max-w-6xl">
             {children}
           </div>
         </main>
