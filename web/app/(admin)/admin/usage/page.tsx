@@ -11,8 +11,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL || "http://localhost:3200";
+import { adminFetch } from "@/lib/admin-api";
 
 type Window = "24h" | "7d" | "30d";
 
@@ -82,7 +81,7 @@ export default function UsagePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/usage?window=${w}`);
+      const res = await adminFetch(`/api/admin/usage?window=${w}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as UsageSummary;
       setData(json);

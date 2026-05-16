@@ -21,6 +21,8 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
   const startedAt = Date.now();
   let sessionId: string | null = null;
   let modelUsed: string | null = null;
+  const apiKeyId: string | null = (req as any).apiKeyRecord?.id ?? null;
+  const source: 'ui' | 'api_key' = apiKeyId ? 'api_key' : 'ui';
 
   try {
     const { sessionKey, message, systemPrompt, model, stream, images } = req.body as {
@@ -38,6 +40,8 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ error: 'sessionKey and message are required' });
       await logRequest({
         sessionId: null,
+        apiKeyId,
+        source,
         model: modelUsed,
         promptTokens: null,
         completionTokens: null,
@@ -49,7 +53,7 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
     }
 
     // Get or create session
-    const session = await getOrCreateSession(sessionKey, systemPrompt);
+    const session = await getOrCreateSession(sessionKey, systemPrompt, source);
     sessionId = session.id;
 
     // Load history
@@ -128,6 +132,8 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
 
       await logRequest({
         sessionId: session.id,
+        apiKeyId,
+        source,
         model: modelUsed,
         promptTokens,
         completionTokens,
@@ -150,6 +156,8 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
 
       await logRequest({
         sessionId: session.id,
+        apiKeyId,
+        source,
         model: modelUsed,
         promptTokens,
         completionTokens,
@@ -167,6 +175,8 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
 
     await logRequest({
       sessionId,
+      apiKeyId,
+      source,
       model: modelUsed,
       promptTokens: null,
       completionTokens: null,

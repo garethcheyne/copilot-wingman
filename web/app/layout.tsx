@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono, Bricolage_Grotesque } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/components/auth-provider";
+import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,6 +25,29 @@ const bricolage = Bricolage_Grotesque({
 export const metadata: Metadata = {
   title: "Wingman",
   description: "Self-hosted Copilot proxy with chat UI",
+  applicationName: "Wingman",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Wingman",
+  },
+  formatDetection: { telephone: false },
+  icons: {
+    icon: "/wingman-ai.png",
+    apple: "/wingman-ai.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f1115" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  colorScheme: "dark light",
 };
 
 export default function RootLayout({
@@ -59,6 +83,7 @@ export default function RootLayout({
               {children}
             </AuthProvider>
           </div>
+          <ServiceWorkerRegistrar />
           <Toaster richColors position="top-right" theme="dark" />
         </ThemeProvider>
       </body>

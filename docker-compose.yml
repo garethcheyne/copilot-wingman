@@ -19,6 +19,8 @@ services:
     build:
       context: ./proxy
       dockerfile: Dockerfile
+      args:
+        - APP_VERSION=${APP_VERSION:-2026.05.16.1600}
     container_name: wingman-proxy
     ports:
       - "${PROXY_PORT:-3200}:3200"
@@ -28,6 +30,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - LLM_STATS_KEY=${LLM_STATS_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

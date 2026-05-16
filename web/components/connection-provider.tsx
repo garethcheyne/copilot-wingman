@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { adminFetch } from "@/lib/admin-api";
 
 type ConnectionHealth = "healthy" | "expired" | "disconnected" | "loading";
 
@@ -20,20 +21,13 @@ export function useConnection() {
   return useContext(ConnectionContext);
 }
 
-const PROXY =
-  process.env.NEXT_PUBLIC_PROXY_URL || "http://localhost:3200";
-
 export function ConnectionProvider({ children }: { children: React.ReactNode }) {
   const [health, setHealth] = useState<ConnectionHealth>("loading");
   const [message, setMessage] = useState<string | null>(null);
 
   const check = useCallback(async () => {
     try {
-      const res = await fetch(`${PROXY}/api/admin/connection`, {
-        headers: {
-          "x-api-key": process.env.NEXT_PUBLIC_API_KEY || "",
-        },
-      });
+      const res = await adminFetch("/api/admin/connection");
       if (!res.ok) {
         setHealth("disconnected");
         setMessage("Cannot reach proxy");

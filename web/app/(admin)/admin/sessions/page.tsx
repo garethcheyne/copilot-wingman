@@ -1,21 +1,37 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { History, Trash2, Loader2, MessageSquare, User, Sparkles, Hash } from "lucide-react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import {
+  History,
+  Trash2,
+  Loader2,
+  MessageSquare,
+  User,
+  Sparkles,
+  Hash,
+  KeyRound,
+  Globe,
+  Filter,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { adminFetch } from "@/lib/admin-api";
 
-const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL || "http://localhost:3200";
+type SessionSource = "ui" | "api_key";
 
 interface SessionSummary {
   id: string;
   sessionKey: string;
   systemPrompt: string | null;
+  source: SessionSource;
   createdAt: string;
   updatedAt: string;
   messageCount: number;
   lastMessageAt: string | null;
   totalTokens: number | null;
+  apiKeyId: string | null;
+  apiKeyName: string | null;
+  apiKeyPrefix: string | null;
 }
 
 interface MessageRow {
@@ -31,11 +47,20 @@ interface SessionDetail {
     id: string;
     sessionKey: string;
     systemPrompt: string | null;
+    source: SessionSource;
     createdAt: string;
     updatedAt: string;
   };
   messages: MessageRow[];
 }
+
+interface ApiKeySummary {
+  id: string;
+  name: string;
+  keyPrefix: string;
+}
+
+type SourceFilter = "all" | "ui" | "api_key";
 
 function formatRelative(iso: string | null): string {
   if (!iso) return "—";
@@ -56,6 +81,7 @@ function formatAbs(iso: string): string {
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<SessionSummary[] | null>(null);
+  const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<SessionDetail | null>(null);
@@ -63,11 +89,23 @@ export default function SessionsPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Filters
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [apiKeyFilter, setApiKeyFilter] = useState<string>("all"); // "all" | api key id
+
   const loadList = useCallback(async () => {
     setLoadingList(true);
     setError(null);
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/sessions`);
+      const params = new URLSearchParams();
+      if (sourceFilter !== "all") params.set("source", sourceFilter);
+      if (apiKeyFilter !== "all") {
+        params.set("api_key_id", apiKeyFilter);
+        // When a specific key is chosen, the source must be api_key.
+        params.set("source", "api_key");
+      }
+      const qs = params.toString();
+      const res = await adminFetch(`/api/admin/sessions${qs ? `?${qs}` : ""}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setSessions(data.sessions || []);
@@ -77,6 +115,22 @@ export default function SessionsPage() {
     } finally {
       setLoadingList(false);
     }
+  }, [sourceFilter, apiKeyFilter]);
+
+  // Load API keys once for the filter dropdown.
+  useEffect(() => {
+    adminFetch("/api/admin/api-keys")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => {
+        const raw = data.keys || data.apiKeys || data || [];
+        const list: ApiKeySummary[] = (Array.isArray(raw) ? raw : []).map((k: any) => ({
+          id: k.id,
+          name: k.name,
+          keyPrefix: k.keyPrefix ?? k.key_prefix ?? "",
+        }));
+        setApiKeys(list);
+      })
+      .catch(() => setApiKeys([]));
   }, []);
 
   useEffect(() => {
@@ -89,7 +143,7 @@ export default function SessionsPage() {
       return;
     }
     setLoadingDetail(true);
-    fetch(`${PROXY_URL}/api/admin/sessions/${selectedId}`)
+    adminFetch(`/api/admin/sessions/${selectedId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(setDetail)
       .catch(() => setDetail(null))
@@ -99,7 +153,7 @@ export default function SessionsPage() {
   const handleDelete = async (id: string) => {
     setDeleting(id);
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/sessions/${id}`, {
+      const res = await adminFetch(`/api/admin/sessions/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -115,9 +169,19 @@ export default function SessionsPage() {
     }
   };
 
-  const sessionsCount = sessions?.length ?? 0;
-  const totalMessages = (sessions ?? []).reduce((a, s) => a + s.messageCount, 0);
-  const totalTokens = (sessions ?? []).reduce((a, s) => a + (s.totalTokens ?? 0), 0);
+  const stats = useMemo(() => {
+    const list = sessions ?? [];
+    return {
+      count: list.length,
+      messages: list.reduce((a, s) => a + s.messageCount, 0),
+      tokens: list.reduce((a, s) => a + (s.totalTokens ?? 0), 0),
+      uiCount: list.filter((s) => s.source === "ui").length,
+      apiCount: list.filter((s) => s.source === "api_key").length,
+    };
+  }, [sessions]);
+
+  // Selected api key meta for the active filter chip
+  const activeApiKey = apiKeys.find((k) => k.id === apiKeyFilter);
 
   return (
     <div className="space-y-8">
@@ -127,35 +191,133 @@ export default function SessionsPage() {
           admin / sessions
         </p>
         <div className="flex items-end gap-6 flex-wrap">
-          <h1 className="text-4xl font-display font-bold tracking-tight leading-none">
+          <h1 className="text-3xl sm:text-4xl font-display font-bold tracking-tight leading-none">
             Session <span className="text-copilot-gradient">Archive</span>
           </h1>
           {!loadingList && (
-            <div className="flex items-center gap-5 pb-1 font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
+            <div className="flex items-center gap-3 sm:gap-5 pb-1 font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground flex-wrap">
               <span>
                 <span className="text-foreground font-display font-bold text-lg mr-1.5">
-                  {sessionsCount}
+                  {stats.count}
                 </span>
                 sessions
               </span>
               <span>
                 <span className="text-foreground font-display font-bold text-lg mr-1.5">
-                  {totalMessages}
+                  {stats.messages}
                 </span>
                 messages
               </span>
               <span>
                 <span className="text-foreground font-display font-bold text-lg mr-1.5">
-                  {totalTokens.toLocaleString()}
+                  {stats.tokens.toLocaleString()}
                 </span>
                 tokens
               </span>
             </div>
           )}
         </div>
-        <p className="text-sm text-muted-foreground max-w-md">
-          Browse every conversation persisted in PostgreSQL. Inspect messages, audit usage, drop stale sessions.
+        <p className="text-sm text-muted-foreground max-w-xl">
+          Every conversation persisted in PostgreSQL — both web-UI chats and external
+          API-key traffic. Filter by source and the specific key used.
         </p>
+      </div>
+
+      {/* Filter bar */}
+      <div className="rounded-2xl border border-border/70 bg-card/50 backdrop-blur-md px-4 py-3 sm:px-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 flex-wrap">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Filter className="w-3.5 h-3.5" />
+            <p className="label-mono leading-none">// Filters</p>
+          </div>
+
+          {/* Source filter */}
+          <div className="flex items-center gap-1 p-1 rounded-lg bg-background/50 border border-border/60">
+            <FilterChip
+              active={sourceFilter === "all"}
+              onClick={() => {
+                setSourceFilter("all");
+                setApiKeyFilter("all");
+              }}
+              icon={<History className="w-3 h-3" />}
+              label="All"
+              count={stats.count}
+            />
+            <FilterChip
+              active={sourceFilter === "ui" && apiKeyFilter === "all"}
+              onClick={() => {
+                setSourceFilter("ui");
+                setApiKeyFilter("all");
+              }}
+              icon={<Globe className="w-3 h-3" />}
+              label="Web UI"
+            />
+            <FilterChip
+              active={sourceFilter === "api_key"}
+              onClick={() => {
+                setSourceFilter("api_key");
+                if (apiKeyFilter !== "all" && !apiKeys.find((k) => k.id === apiKeyFilter)) {
+                  setApiKeyFilter("all");
+                }
+              }}
+              icon={<KeyRound className="w-3 h-3" />}
+              label="API Keys"
+            />
+          </div>
+
+          {/* API key selector — only when filtering api_key traffic */}
+          {sourceFilter === "api_key" && (
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <label className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground shrink-0">
+                Key
+              </label>
+              <select
+                value={apiKeyFilter}
+                onChange={(e) => setApiKeyFilter(e.target.value)}
+                aria-label="Filter sessions by API key"
+                title="Filter sessions by API key"
+                className="bg-background/60 border border-border/60 rounded-md px-2.5 py-1.5 text-xs font-mono tracking-wide focus:outline-none focus:border-primary/50 min-w-48 max-w-full truncate"
+              >
+                <option value="all">All API keys</option>
+                {apiKeys.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.name} · {k.keyPrefix}…
+                  </option>
+                ))}
+              </select>
+              {apiKeys.length === 0 && (
+                <span className="font-mono text-[10px] tracking-wider text-muted-foreground/70 uppercase">
+                  // no keys yet
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Active filter recap on the right */}
+          <div className="sm:ml-auto flex items-center gap-2 font-mono text-[10px] tracking-wider text-muted-foreground/80 uppercase">
+            <span>
+              <span className="text-foreground font-display font-bold text-base mr-1">
+                {stats.uiCount}
+              </span>
+              UI
+            </span>
+            <span className="opacity-40">·</span>
+            <span>
+              <span className="text-foreground font-display font-bold text-base mr-1">
+                {stats.apiCount}
+              </span>
+              API
+            </span>
+            {activeApiKey && sourceFilter === "api_key" && (
+              <>
+                <span className="opacity-40">·</span>
+                <span className="text-copilot-purple normal-case tracking-normal">
+                  {activeApiKey.name}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Empty / Error / Content */}
@@ -172,8 +334,8 @@ export default function SessionsPage() {
         <div className="rounded-2xl border border-destructive/40 bg-destructive/5 px-6 py-5 font-mono text-[11px] tracking-wide text-destructive">
           // Could not reach proxy &mdash; {error}
         </div>
-      ) : sessionsCount === 0 ? (
-        <EmptyState />
+      ) : stats.count === 0 ? (
+        <EmptyState filtered={sourceFilter !== "all" || apiKeyFilter !== "all"} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-4">
           {/* List */}
@@ -188,6 +350,12 @@ export default function SessionsPage() {
                   deleting={deleting === s.id}
                   onSelect={() => setSelectedId(s.id)}
                   onDelete={() => handleDelete(s.id)}
+                  onFilterKey={() => {
+                    if (s.apiKeyId) {
+                      setSourceFilter("api_key");
+                      setApiKeyFilter(s.apiKeyId);
+                    }
+                  }}
                 />
               ))}
             </div>
@@ -201,7 +369,10 @@ export default function SessionsPage() {
             ) : loadingDetail ? (
               <Skeleton className="h-96 rounded-2xl" />
             ) : detail ? (
-              <SessionThread detail={detail} />
+              <SessionThread
+                detail={detail}
+                summary={sessions?.find((x) => x.id === detail.session.id) ?? null}
+              />
             ) : (
               <DetailPlaceholder error />
             )}
@@ -212,18 +383,82 @@ export default function SessionsPage() {
   );
 }
 
+function FilterChip({
+  active,
+  onClick,
+  icon,
+  label,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  count?: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors min-h-8 ${
+        active
+          ? "bg-copilot-purple/15 text-copilot-purple border border-copilot-purple/30"
+          : "text-muted-foreground hover:text-foreground hover:bg-secondary/60 border border-transparent"
+      }`}
+    >
+      <span className={active ? "text-copilot-purple" : "text-muted-foreground"}>
+        {icon}
+      </span>
+      <span className="font-medium">{label}</span>
+      {typeof count === "number" && (
+        <span className="font-mono text-[9px] tracking-wider opacity-70">
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function SourceBadge({ session }: { session: SessionSummary }) {
+  if (session.source === "api_key") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono tracking-wider uppercase border border-copilot-purple/30 bg-copilot-purple/10 text-copilot-purple max-w-full"
+        title={
+          session.apiKeyName
+            ? `API key: ${session.apiKeyName} (${session.apiKeyPrefix ?? "?"}…)`
+            : "API key (key info unavailable)"
+        }
+      >
+        <KeyRound className="w-2.5 h-2.5 shrink-0" />
+        <span className="truncate">
+          {session.apiKeyName ?? "API Key"}
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono tracking-wider uppercase border border-primary/30 bg-primary/10 text-primary">
+      <Globe className="w-2.5 h-2.5" />
+      UI
+    </span>
+  );
+}
+
 function SessionRow({
   session,
   active,
   deleting,
   onSelect,
   onDelete,
+  onFilterKey,
 }: {
   session: SessionSummary;
   active: boolean;
   deleting: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onFilterKey: () => void;
 }) {
   return (
     <div
@@ -240,16 +475,39 @@ function SessionRow({
           className="absolute left-0 top-3 bottom-3 w-0.5 rounded-r-full bg-copilot-purple shadow-[0_0_8px_hsl(258_90%_66%/0.8)]"
         />
       )}
-      <div className="px-4 py-3.5 backdrop-blur-md">
+      <div className="px-3 sm:px-4 py-3 backdrop-blur-md">
         <div className="flex items-start justify-between gap-2 mb-1.5">
-          <code className="font-mono text-[11px] tracking-wide text-foreground/90 truncate max-w-[280px]">
-            {session.sessionKey}
-          </code>
+          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+            <button
+              type="button"
+              onClick={(e) => {
+                if (session.source === "api_key" && session.apiKeyId) {
+                  e.stopPropagation();
+                  onFilterKey();
+                }
+              }}
+              className={
+                session.source === "api_key" && session.apiKeyId
+                  ? "hover:opacity-80 transition-opacity"
+                  : "pointer-events-none"
+              }
+              title={
+                session.source === "api_key" && session.apiKeyId
+                  ? "Filter by this API key"
+                  : undefined
+              }
+            >
+              <SourceBadge session={session} />
+            </button>
+            <code className="font-mono text-[11px] tracking-wide text-foreground/90 truncate max-w-50 sm:max-w-65">
+              {session.sessionKey}
+            </code>
+          </div>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/15 hover:text-destructive"
+            className="h-7 w-7 p-0 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-destructive/15 hover:text-destructive"
             onClick={(e) => {
               e.stopPropagation();
               onDelete();
@@ -263,6 +521,12 @@ function SessionRow({
             )}
           </Button>
         </div>
+
+        {session.source === "api_key" && session.apiKeyPrefix && (
+          <p className="font-mono text-[9px] tracking-wider text-muted-foreground/70 mb-1.5 truncate">
+            {session.apiKeyPrefix}… · key id {session.apiKeyId?.slice(0, 8)}
+          </p>
+        )}
 
         <div className="flex items-center gap-3 font-mono text-[10px] tracking-wider text-muted-foreground">
           <span className="flex items-center gap-1">
@@ -282,7 +546,13 @@ function SessionRow({
   );
 }
 
-function SessionThread({ detail }: { detail: SessionDetail }) {
+function SessionThread({
+  detail,
+  summary,
+}: {
+  detail: SessionDetail;
+  summary: SessionSummary | null;
+}) {
   const { session, messages } = detail;
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/60 backdrop-blur-md">
@@ -291,15 +561,27 @@ function SessionThread({ detail }: { detail: SessionDetail }) {
         className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-copilot-purple/40 to-transparent"
       />
       {/* Header */}
-      <div className="px-6 py-4 border-b border-border/70 bg-card/40">
+      <div className="px-4 sm:px-6 py-4 border-b border-border/70 bg-card/40">
         <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <p className="label-mono mb-1">// Session</p>
-            <code className="font-mono text-sm tracking-wide text-foreground/95 break-all">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <p className="label-mono">// Session</p>
+              {summary && <SourceBadge session={summary} />}
+            </div>
+            <code className="font-mono text-xs sm:text-sm tracking-wide text-foreground/95 break-all">
               {session.sessionKey}
             </code>
+            {summary?.source === "api_key" && summary.apiKeyName && (
+              <p className="font-mono text-[10px] tracking-wider text-muted-foreground mt-1">
+                <KeyRound className="w-3 h-3 inline mr-1 -mt-0.5 text-copilot-purple" />
+                {summary.apiKeyName}
+                {summary.apiKeyPrefix && (
+                  <span className="text-muted-foreground/60"> · {summary.apiKeyPrefix}…</span>
+                )}
+              </p>
+            )}
           </div>
-          <div className="font-mono text-[10px] tracking-wider text-muted-foreground space-y-0.5 text-right">
+          <div className="font-mono text-[10px] tracking-wider text-muted-foreground space-y-0.5 sm:text-right">
             <p>
               <span className="text-muted-foreground/60">CREATED &nbsp;</span>
               {formatAbs(session.createdAt)}
@@ -325,7 +607,7 @@ function SessionThread({ detail }: { detail: SessionDetail }) {
       </div>
 
       {/* Messages */}
-      <div className="max-h-[60vh] overflow-y-auto scroll-sleek px-6 py-5 space-y-5">
+      <div className="max-h-[60vh] overflow-y-auto scroll-sleek px-4 sm:px-6 py-5 space-y-5">
         {messages.length === 0 ? (
           <p className="font-mono text-[11px] tracking-wider text-muted-foreground/70 text-center py-8 uppercase">
             // No messages in this session yet
@@ -361,7 +643,7 @@ function MessageBlock({ message }: { message: MessageRow }) {
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-3 mb-1.5">
+        <div className="flex items-center gap-3 mb-1.5 flex-wrap">
           <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground/80">
             // {message.role === "system" ? "System" : isUser ? "User" : "Assistant"}
           </p>
@@ -407,7 +689,7 @@ function DetailPlaceholder({ error }: { error?: boolean }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ filtered }: { filtered?: boolean }) {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/60 backdrop-blur-md">
       <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-accent/40 to-transparent" />
@@ -423,20 +705,30 @@ function EmptyState() {
 
         <div className="space-y-2 max-w-sm">
           <h2 className="text-2xl font-display font-bold leading-tight">
-            No <span className="text-copilot-gradient">sessions</span> yet
+            {filtered ? (
+              <>No <span className="text-copilot-gradient">matches</span></>
+            ) : (
+              <>No <span className="text-copilot-gradient">sessions</span> yet</>
+            )}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Send your first message from the Chat tab. Sessions appear here keyed by{" "}
-            <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-secondary/60 text-accent border border-border/60">
-              tenant:user:project
-            </code>
-            .
+            {filtered
+              ? "No sessions match the current filter. Try widening the source or picking a different API key."
+              : (
+                <>
+                  Send your first message from the Chat tab. Sessions appear here keyed by{" "}
+                  <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-secondary/60 text-accent border border-border/60">
+                    tenant:user:project
+                  </code>
+                  .
+                </>
+              )}
           </p>
         </div>
 
         <div className="font-mono text-[10px] tracking-[0.22em] uppercase text-muted-foreground/60 flex items-center gap-3">
           <span className="inline-block w-8 h-px bg-border" />
-          Awaiting first request
+          {filtered ? "Filter active" : "Awaiting first request"}
           <span className="inline-block w-8 h-px bg-border" />
         </div>
       </div>

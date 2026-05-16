@@ -12,6 +12,15 @@ import {
   deleteSession,
 } from '../services/session-manager.js';
 import { getUsageSummary, type UsageWindow } from '../services/usage.js';
+import {
+  getActiveModels,
+  getSyncEvents,
+  getLastSyncTime,
+  syncModels,
+  validateModelIds,
+  getModelById,
+} from '../services/model-sync.js';
+import { loadLlmStatsKey, getModelDetail as getLlmStatsModelDetail } from '../services/llm-stats.js';
 
 export const adminRouter = Router();
 
@@ -224,29 +233,115 @@ adminRouter.post('/connection/oauth/poll', async (req: Request, res: Response): 
 
 /**
  * GET /api/admin/models
- * Returns available Copilot models.
+ * Returns ALL models from the DB (populated by the sync service).
+ * Includes active, removed, and revoked models so the admin can see the full picture.
  */
 adminRouter.get('/models', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const token = await getCopilotToken();
-    const modelsRes = await fetch('https://api.githubcopilot.com/models', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'User-Agent': 'GithubCopilot/1.300.0',
-        'Copilot-Integration-Id': 'vscode-chat',
-        'Editor-Version': 'vscode/1.100.0',
-        'Editor-Plugin-Version': 'copilot-chat/0.28.0',
-        Accept: 'application/json',
-      },
-    });
+    // All models (including removed) for the full admin view
+    const allResult = await pool.query(
+      `SELECT * FROM upstream_models ORDER BY status, vendor, name`
+    );
+    const lastSync = await getLastSyncTime();
 
-    if (!modelsRes.ok) {
-      res.status(modelsRes.status).json({ error: `Models API returned ${modelsRes.status}` });
+    const active = allResult.rows.filter(r => r.status === 'active');
+    const removed = allResult.rows.filter(r => r.status !== 'active');
+
+    res.json({
+      data: active,
+      removed,
+      total: active.length,
+      total_removed: removed.length,
+      chat_capable: active.filter(r => r.chat_enabled).length,
+      last_sync: lastSync?.toISOString() ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
+ * POST /api/admin/models/sync
+ * Trigger an immediate model sync with upstream.
+ */
+adminRouter.post('/models/sync', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await syncModels();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
+ * GET /api/admin/models/events
+ * Returns recent model sync events (additions, removals, changes).
+ */
+adminRouter.get('/models/events', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const events = await getSyncEvents(limit);
+    res.json({ events, total: events.length });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
+ * POST /api/admin/models/validate-scopes
+ * Given a list of model IDs, returns which are still active and which are invalid.
+ * Useful for the API key editor to warn about stale scopes.
+ */
+adminRouter.post('/models/validate-scopes', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { scopes } = req.body as { scopes: string[] };
+    if (!Array.isArray(scopes)) {
+      res.status(400).json({ error: 'scopes must be an array of model IDs' });
+      return;
+    }
+    const result = await validateModelIds(scopes);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
+ * GET /api/admin/models/:id
+ * Returns a single model from the DB, optionally enriched with LLM Stats data.
+ */
+adminRouter.get('/models/:id', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = String(req.params.id);
+    const model = await getModelById(id);
+
+    if (!model) {
+      res.status(404).json({ error: 'Model not found' });
       return;
     }
 
-    const data = (await modelsRes.json()) as any;
-    res.json(data);
+    // Try to enrich with LLM Stats data
+    let llmStats = null;
+    try {
+      const apiKey = await loadLlmStatsKey();
+      if (apiKey) {
+        llmStats = await getLlmStatsModelDetail(apiKey, id);
+      }
+    } catch {
+      // LLM Stats unavailable — return model without enrichment
+    }
+
+    // Get sync events for this model
+    const eventsResult = await pool.query(
+      `SELECT * FROM model_sync_log WHERE model_id = $1 ORDER BY created_at DESC LIMIT 20`,
+      [id]
+    );
+
+    res.json({
+      model,
+      llm_stats: llmStats,
+      events: eventsResult.rows,
+    });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -304,16 +399,24 @@ adminRouter.get('/account', async (_req: Request, res: Response): Promise<void> 
 // Settings
 // ─────────────────────────────────────────────────
 
+// Keys in this set are stored encrypted and never returned in plain text
+const ENCRYPTED_SETTINGS = new Set(['llm_stats_api_key']);
+
 /**
  * GET /api/admin/settings
- * Returns all app settings.
+ * Returns all app settings. Encrypted keys are returned as masked booleans.
  */
 adminRouter.get('/settings', async (_req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(`SELECT key, value FROM app_settings`);
-    const settings: Record<string, string> = {};
+    const settings: Record<string, string | boolean> = {};
     for (const row of result.rows) {
-      settings[row.key] = row.value;
+      if (ENCRYPTED_SETTINGS.has(row.key)) {
+        // Don't return the encrypted value — just indicate it's set
+        settings[row.key] = true;
+      } else {
+        settings[row.key] = row.value;
+      }
     }
     res.json(settings);
   } catch (err) {
@@ -324,10 +427,11 @@ adminRouter.get('/settings', async (_req: Request, res: Response): Promise<void>
 /**
  * PUT /api/admin/settings/:key
  * Body: { value }
+ * Encrypted settings are stored with AES-256-GCM.
  */
 adminRouter.put('/settings/:key', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { key } = req.params;
+    const key = String(req.params.key);
     const { value } = req.body as { value: string };
 
     if (!value) {
@@ -335,25 +439,91 @@ adminRouter.put('/settings/:key', async (req: Request, res: Response): Promise<v
       return;
     }
 
+    let storedValue = value;
+    if (ENCRYPTED_SETTINGS.has(key)) {
+      // Encrypt sensitive values before storing
+      const encrypted = encrypt(value, ENCRYPTION_KEY);
+      storedValue = encrypted.toString('base64');
+    }
+
     await pool.query(
       `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, NOW())
        ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
-      [key, value]
+      [key, storedValue]
     );
 
-    res.json({ ok: true, key, value });
+    res.json({ ok: true, key });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
 });
 
 /**
- * GET /api/admin/sessions
- * Returns all sessions with rolled-up message counts and totals.
+ * DELETE /api/admin/settings/:key
+ * Remove a setting (only allowed for encrypted/optional settings).
  */
-adminRouter.get('/sessions', async (_req: Request, res: Response): Promise<void> => {
+adminRouter.delete('/settings/:key', async (req: Request, res: Response): Promise<void> => {
   try {
-    const sessions = await listSessionsWithStats(200);
+    const key = String(req.params.key);
+
+    if (!ENCRYPTED_SETTINGS.has(key)) {
+      res.status(400).json({ error: 'Only optional integration keys can be deleted' });
+      return;
+    }
+
+    await pool.query(`DELETE FROM app_settings WHERE key = $1`, [key]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
+ * POST /api/admin/settings/llm-stats/test
+ * Tests the stored LLM Stats API key by calling their /v1/models endpoint.
+ */
+adminRouter.post('/settings/llm-stats/test', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(`SELECT value FROM app_settings WHERE key = 'llm_stats_api_key'`);
+    if (result.rows.length === 0) {
+      res.status(400).json({ ok: false, error: 'No LLM Stats API key configured' });
+      return;
+    }
+
+    // Decrypt the key
+    const buf = Buffer.from(result.rows[0].value, 'base64');
+    const apiKey = decrypt(buf, ENCRYPTION_KEY);
+
+    // Call the LLM Stats API
+    const testRes = await fetch('https://api.zeroeval.com/stats/v1/models?limit=1', {
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+    });
+
+    if (testRes.ok) {
+      const data = await testRes.json() as { models?: any[]; total?: number };
+      res.json({ ok: true, models_available: data.total ?? data.models?.length ?? 0 });
+    } else {
+      const errText = await testRes.text();
+      res.json({ ok: false, error: `API returned ${testRes.status}: ${errText}` });
+    }
+  } catch (err) {
+    res.status(500).json({ ok: false, error: (err as Error).message });
+  }
+});
+
+/**
+ * GET /api/admin/sessions?source=ui|api_key|all&api_key_id=<uuid>
+ * Returns sessions with rolled-up message counts and totals, plus the
+ * API key (name + prefix) that drove the most recent request for each.
+ * Defaults to 'all' so the admin can audit every conversation.
+ */
+adminRouter.get('/sessions', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const sourceParam = (req.query.source as string | undefined) ?? 'all';
+    const source =
+      sourceParam === 'ui' || sourceParam === 'api_key' ? sourceParam : undefined;
+    const apiKeyId = (req.query.api_key_id as string | undefined) || undefined;
+    const sessions = await listSessionsWithStats(200, { source, apiKeyId });
     res.json({ sessions });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });

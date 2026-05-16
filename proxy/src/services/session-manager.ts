@@ -4,6 +4,7 @@ export interface Session {
   id: string;
   sessionKey: string;
   systemPrompt: string | null;
+  source: 'ui' | 'api_key';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,11 +21,11 @@ export interface Message {
 /**
  * Get or create a session by its key.
  */
-export async function getOrCreateSession(sessionKey: string, systemPrompt?: string): Promise<Session> {
+export async function getOrCreateSession(sessionKey: string, systemPrompt?: string, source: 'ui' | 'api_key' = 'ui'): Promise<Session> {
   // Try to find existing
   const existing = await pool.query<Session>(
     `SELECT id, session_key AS "sessionKey", system_prompt AS "systemPrompt",
-            created_at AS "createdAt", updated_at AS "updatedAt"
+            source, created_at AS "createdAt", updated_at AS "updatedAt"
      FROM chat_sessions WHERE session_key = $1`,
     [sessionKey]
   );
@@ -35,11 +36,11 @@ export async function getOrCreateSession(sessionKey: string, systemPrompt?: stri
 
   // Create new
   const created = await pool.query<Session>(
-    `INSERT INTO chat_sessions (session_key, system_prompt)
-     VALUES ($1, $2)
+    `INSERT INTO chat_sessions (session_key, system_prompt, source)
+     VALUES ($1, $2, $3)
      RETURNING id, session_key AS "sessionKey", system_prompt AS "systemPrompt",
-               created_at AS "createdAt", updated_at AS "updatedAt"`,
-    [sessionKey, systemPrompt ?? null]
+               source, created_at AS "createdAt", updated_at AS "updatedAt"`,
+    [sessionKey, systemPrompt ?? null, source]
   );
 
   return created.rows[0];
@@ -93,7 +94,7 @@ export async function getMessages(sessionId: string): Promise<Message[]> {
 export async function listSessions(limit = 50): Promise<Session[]> {
   const result = await pool.query<Session>(
     `SELECT id, session_key AS "sessionKey", system_prompt AS "systemPrompt",
-            created_at AS "createdAt", updated_at AS "updatedAt"
+            source, created_at AS "createdAt", updated_at AS "updatedAt"
      FROM chat_sessions
      ORDER BY updated_at DESC
      LIMIT $1`,
@@ -108,22 +109,52 @@ export interface SessionSummary extends Session {
   lastMessageAt: Date | null;
   totalTokens: number | null;
   preview: string | null;
+  apiKeyId: string | null;
+  apiKeyName: string | null;
+  apiKeyPrefix: string | null;
+}
+
+export interface ListSessionsFilter {
+  source?: 'ui' | 'api_key';
+  apiKeyId?: string;
 }
 
 /**
  * List sessions with rolled-up stats — used by the admin Sessions page.
+ * Joins `request_log` to surface which API key (if any) drove the session.
  */
-export async function listSessionsWithStats(limit = 100): Promise<SessionSummary[]> {
+export async function listSessionsWithStats(
+  limit = 100,
+  filter: ListSessionsFilter = {}
+): Promise<SessionSummary[]> {
+  const where: string[] = [];
+  const params: (number | string)[] = [limit];
+
+  if (filter.source) {
+    params.push(filter.source);
+    where.push(`s.source = $${params.length}`);
+  }
+  if (filter.apiKeyId) {
+    params.push(filter.apiKeyId);
+    where.push(`k.id = $${params.length}`);
+  }
+
+  const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
   const result = await pool.query<SessionSummary>(
     `SELECT s.id,
             s.session_key       AS "sessionKey",
             s.system_prompt     AS "systemPrompt",
+            s.source,
             s.created_at        AS "createdAt",
             s.updated_at        AS "updatedAt",
             COALESCE(m.cnt, 0)::int  AS "messageCount",
             m.last_at           AS "lastMessageAt",
             m.total_tokens      AS "totalTokens",
-            p.preview
+            p.preview,
+            k.id                AS "apiKeyId",
+            k.name              AS "apiKeyName",
+            k.key_prefix        AS "apiKeyPrefix"
      FROM chat_sessions s
      LEFT JOIN (
        SELECT session_id,
@@ -140,9 +171,18 @@ export async function listSessionsWithStats(limit = 100): Promise<SessionSummary
        ORDER BY created_at ASC
        LIMIT 1
      ) p ON true
+     LEFT JOIN LATERAL (
+       SELECT ak.id, ak.name, ak.key_prefix
+       FROM request_log rl
+       JOIN api_keys ak ON ak.id = rl.api_key_id
+       WHERE rl.session_id = s.id
+       ORDER BY rl.created_at DESC
+       LIMIT 1
+     ) k ON true
+     ${whereClause}
      ORDER BY s.updated_at DESC
      LIMIT $1`,
-    [limit]
+    params
   );
 
   return result.rows;
@@ -154,7 +194,7 @@ export async function listSessionsWithStats(limit = 100): Promise<SessionSummary
 export async function getSessionById(id: string): Promise<Session | null> {
   const result = await pool.query<Session>(
     `SELECT id, session_key AS "sessionKey", system_prompt AS "systemPrompt",
-            created_at AS "createdAt", updated_at AS "updatedAt"
+            source, created_at AS "createdAt", updated_at AS "updatedAt"
      FROM chat_sessions WHERE id = $1`,
     [id]
   );

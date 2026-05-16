@@ -4,6 +4,8 @@ export type UsageWindow = '24h' | '7d' | '30d';
 
 export interface LogRequestInput {
   sessionId: string | null;
+  apiKeyId?: string | null;
+  source: 'ui' | 'api_key';
   model: string | null;
   promptTokens: number | null;
   completionTokens: number | null;
@@ -16,10 +18,12 @@ export async function logRequest(input: LogRequestInput): Promise<void> {
   try {
     await pool.query(
       `INSERT INTO request_log
-         (session_id, model, prompt_tokens, completion_tokens, latency_ms, status, error_message)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         (session_id, api_key_id, source, model, prompt_tokens, completion_tokens, latency_ms, status, error_message)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         input.sessionId,
+        input.apiKeyId ?? null,
+        input.source,
         input.model,
         input.promptTokens,
         input.completionTokens,
@@ -74,13 +78,20 @@ export interface UsageSummary {
     completionTokens: number;
     avgLatencyMs: number | null;
   }>;
+  bySource: Array<{
+    source: string;
+    apiKeyName: string | null;
+    requests: number;
+    promptTokens: number;
+    completionTokens: number;
+  }>;
 }
 
 export async function getUsageSummary(window: UsageWindow): Promise<UsageSummary> {
   const interval = windowInterval(window);
   const bucket = bucketSize(window);
 
-  const [totalsRes, seriesRes, modelRes] = await Promise.all([
+  const [totalsRes, seriesRes, modelRes, sourceRes] = await Promise.all([
     pool.query<{
       requests: string;
       success_requests: string;
@@ -139,6 +150,25 @@ export async function getUsageSummary(window: UsageWindow): Promise<UsageSummary
        GROUP BY model
        ORDER BY requests DESC`
     ),
+    pool.query<{
+      source: string;
+      api_key_name: string | null;
+      requests: string;
+      prompt_tokens: string | null;
+      completion_tokens: string | null;
+    }>(
+      `SELECT
+          r.source,
+          ak.name AS api_key_name,
+          COUNT(*)::text                                      AS requests,
+          COALESCE(SUM(r.prompt_tokens), 0)::text             AS prompt_tokens,
+          COALESCE(SUM(r.completion_tokens), 0)::text         AS completion_tokens
+       FROM request_log r
+       LEFT JOIN api_keys ak ON r.api_key_id = ak.id
+       WHERE r.created_at >= NOW() - INTERVAL '${interval}'
+       GROUP BY r.source, ak.name
+       ORDER BY requests DESC`
+    ),
   ]);
 
   const t = totalsRes.rows[0];
@@ -171,6 +201,13 @@ export async function getUsageSummary(window: UsageWindow): Promise<UsageSummary
       promptTokens: num(r.prompt_tokens),
       completionTokens: num(r.completion_tokens),
       avgLatencyMs: numOrNull(r.avg_latency_ms),
+    })),
+    bySource: sourceRes.rows.map((r) => ({
+      source: r.source,
+      apiKeyName: r.api_key_name,
+      requests: num(r.requests),
+      promptTokens: num(r.prompt_tokens),
+      completionTokens: num(r.completion_tokens),
     })),
   };
 }

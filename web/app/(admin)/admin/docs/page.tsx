@@ -2,7 +2,18 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Copy, Check, Terminal, Lock, Server, Heart } from "lucide-react";
+import {
+  Copy,
+  Check,
+  Terminal,
+  Lock,
+  Server,
+  Heart,
+  Cpu,
+  FileJson,
+  ExternalLink,
+  Network,
+} from "lucide-react";
 
 const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL || "http://localhost:3200";
 
@@ -26,7 +37,6 @@ function CodeBlock({ code, language = "bash" }: { code: string; language?: strin
 
   return (
     <div className="relative group rounded-xl border border-border/70 bg-background/60 backdrop-blur-md overflow-hidden">
-      {/* terminal chrome */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 bg-card/40">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-destructive/60" />
@@ -69,7 +79,7 @@ function EndpointHeader({ method, path }: { method: Method; path: string }) {
       >
         {method}
       </span>
-      <code className="font-mono text-sm tracking-wider">{path}</code>
+      <code className="font-mono text-sm tracking-wider break-all">{path}</code>
     </div>
   );
 }
@@ -99,7 +109,7 @@ function EndpointCard({
             : "bg-linear-to-r from-transparent via-destructive/50 to-transparent"
         }`}
       />
-      <div className="px-6 py-5 space-y-4">
+      <div className="px-4 sm:px-6 py-5 space-y-4">
         <div className="space-y-2">
           <EndpointHeader method={method} path={path} />
           <p className="text-sm text-muted-foreground">{description}</p>
@@ -119,6 +129,12 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export default function DocsPage() {
+  const specUrl = `${PROXY_URL}/openapi.json`;
+  const swaggerUrl = `/swagger.html?url=${encodeURIComponent(specUrl)}`;
+  const swaggerEditorUrl = `https://editor.swagger.io/?url=${encodeURIComponent(
+    specUrl,
+  )}`;
+
   return (
     <div className="space-y-10">
       {/* Header */}
@@ -126,11 +142,13 @@ export default function DocsPage() {
         <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-muted-foreground">
           admin / api docs
         </p>
-        <h1 className="text-4xl font-display font-bold tracking-tight leading-none">
+        <h1 className="text-3xl sm:text-4xl font-display font-bold tracking-tight leading-none">
           API <span className="text-copilot-gradient">Reference</span>
         </h1>
-        <p className="text-sm text-muted-foreground max-w-lg">
-          How to talk to the Wingman proxy &mdash; endpoints, auth headers, request shapes, copy-paste examples in three languages.
+        <p className="text-sm text-muted-foreground max-w-xl">
+          Public endpoints reachable with a Wingman API key — chat, model
+          discovery, and health. Admin endpoints are intentionally excluded
+          because they require an interactive session.
         </p>
       </div>
 
@@ -145,7 +163,8 @@ export default function DocsPage() {
             </div>
             <CodeBlock code={PROXY_URL} />
             <p className="font-mono text-[11px] text-muted-foreground/80 tracking-wide">
-              All endpoints relative to this host. Proxy forwards to api.githubcopilot.com.
+              All endpoints are relative to this host. The proxy forwards to
+              api.githubcopilot.com.
             </p>
           </div>
         </div>
@@ -158,30 +177,86 @@ export default function DocsPage() {
               <p className="label-mono">// Authentication</p>
             </div>
             <p className="text-sm text-muted-foreground">
-              Chat endpoints require an internal API key via{" "}
+              Send a Wingman API key (prefix{" "}
+              <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-copilot-purple/15 text-copilot-purple">
+                wm_
+              </code>
+              ) as either{" "}
+              <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-copilot-purple/15 text-copilot-purple">
+                Authorization: Bearer
+              </code>{" "}
+              or{" "}
               <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-copilot-purple/15 text-copilot-purple">
                 X-Api-Key
               </code>
-              . Admin endpoints are localhost-only.
+              .
             </p>
             <CodeBlock
               code={`curl ${PROXY_URL}/api/chat \\
   -H "Content-Type: application/json" \\
-  -H "X-Api-Key: YOUR_INTERNAL_API_KEY" \\
+  -H "Authorization: Bearer wm_..." \\
   -d '{"sessionKey": "my-session", "message": "Hello"}'`}
             />
             <p className="font-mono text-[11px] text-muted-foreground/80 tracking-wide">
-              Set <code className="text-copilot-purple">INTERNAL_API_KEY</code> in proxy <code className="text-copilot-purple">.env</code>. If unset, auth is skipped (dev mode).
+              Generate keys under <code className="text-copilot-purple">Admin → API Keys</code>.
+              Each key can be scoped to specific models.
             </p>
           </div>
         </div>
       </div>
 
+      {/* Swagger UI — interactive */}
+      <section className="space-y-3">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <div>
+            <SectionLabel>// Interactive Spec (Swagger UI)</SectionLabel>
+            <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+              Live OpenAPI 3.1 spec served by the proxy. Try requests against
+              your local proxy, copy URLs to Postman, or import into your tool
+              of choice.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={specUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs border border-border/70 bg-card/60 hover:bg-card hover:border-primary/40 transition-colors font-mono tracking-wider uppercase text-[10px]"
+            >
+              <FileJson className="w-3 h-3" />
+              openapi.json
+              <ExternalLink className="w-3 h-3 opacity-60" />
+            </a>
+            <a
+              href={swaggerEditorUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs border border-border/70 bg-card/60 hover:bg-card hover:border-copilot-purple/40 transition-colors font-mono tracking-wider uppercase text-[10px]"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Editor.swagger.io
+            </a>
+          </div>
+        </div>
+        <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/60 backdrop-blur-md">
+          <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-copilot-green/40 to-transparent" />
+          <iframe
+            title="Swagger UI"
+            src={swaggerUrl}
+            className="w-full h-180 bg-transparent"
+          />
+        </div>
+        <p className="font-mono text-[10px] tracking-wider text-muted-foreground/70 uppercase">
+          // Swagger UI loads from unpkg.com — needs internet on first view; the
+          spec itself is fully local.
+        </p>
+      </section>
+
       {/* Endpoint reference */}
       <div className="space-y-4">
         <SectionLabel>// Endpoint Reference</SectionLabel>
         <Tabs defaultValue="chat">
-          <TabsList className="bg-card/60 backdrop-blur-md border border-border/70 p-1 h-auto">
+          <TabsList className="bg-card/60 backdrop-blur-md border border-border/70 p-1 h-auto flex-wrap">
             <TabsTrigger
               value="chat"
               className="font-mono text-[10px] tracking-widest uppercase data-[state=active]:bg-primary/15 data-[state=active]:text-primary"
@@ -189,10 +264,10 @@ export default function DocsPage() {
               <Terminal className="w-3 h-3 mr-1.5" /> Chat
             </TabsTrigger>
             <TabsTrigger
-              value="admin"
+              value="models"
               className="font-mono text-[10px] tracking-widest uppercase data-[state=active]:bg-copilot-purple/15 data-[state=active]:text-copilot-purple"
             >
-              <Server className="w-3 h-3 mr-1.5" /> Admin
+              <Cpu className="w-3 h-3 mr-1.5" /> Models
             </TabsTrigger>
             <TabsTrigger
               value="health"
@@ -216,9 +291,10 @@ export default function DocsPage() {
                   code={`{
   "sessionKey": "unique-session-id",
   "message": "What is TypeScript?",
-  "model": "gpt-4o",            // optional, defaults to admin setting
-  "systemPrompt": "You are...", // optional, set on first message
-  "stream": true                // optional, enables SSE streaming
+  "model": "gpt-4o",            // optional, defaults to the API key's default_model
+  "systemPrompt": "You are...", // optional, set on first message in a session
+  "stream": true,               // optional, enables SSE streaming
+  "images": ["data:image/png;base64,..."]
 }`}
                 />
               </div>
@@ -249,10 +325,10 @@ data: [DONE]`}
               <div className="space-y-2">
                 <SectionLabel>Example · curl</SectionLabel>
                 <CodeBlock
-                  code={`# Non-streaming
+                  code={`# One-shot
 curl -X POST ${PROXY_URL}/api/chat \\
   -H "Content-Type: application/json" \\
-  -H "X-Api-Key: dev-internal-key" \\
+  -H "Authorization: Bearer wm_yourkeyhere" \\
   -d '{
     "sessionKey": "test-session-1",
     "message": "Explain async/await in 2 sentences",
@@ -262,7 +338,7 @@ curl -X POST ${PROXY_URL}/api/chat \\
 # Streaming
 curl -X POST ${PROXY_URL}/api/chat \\
   -H "Content-Type: application/json" \\
-  -H "X-Api-Key: dev-internal-key" \\
+  -H "Authorization: Bearer wm_yourkeyhere" \\
   -d '{
     "sessionKey": "test-session-1",
     "message": "Write a haiku about code",
@@ -279,7 +355,7 @@ curl -X POST ${PROXY_URL}/api/chat \\
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "X-Api-Key": process.env.INTERNAL_API_KEY,
+    Authorization: \`Bearer \${process.env.WINGMAN_API_KEY}\`,
   },
   body: JSON.stringify({
     sessionKey: "my-app-session",
@@ -304,7 +380,7 @@ response = requests.post(
     "${PROXY_URL}/api/chat",
     headers={
         "Content-Type": "application/json",
-        "X-Api-Key": "dev-internal-key",
+        "Authorization": "Bearer wm_yourkeyhere",
     },
     json={
         "sessionKey": "python-session",
@@ -328,8 +404,9 @@ print(data["message"])`}
                   <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-copilot-purple/15 text-copilot-purple">
                     sessionKey
                   </code>
-                  . Conversation history is maintained automatically &mdash; subsequent messages in the same session include
-                  previous context.
+                  . Conversation history is maintained automatically &mdash;
+                  subsequent messages in the same session include previous
+                  context.
                 </p>
                 <ul className="space-y-1.5 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2.5">
@@ -353,127 +430,346 @@ print(data["message"])`}
             </div>
           </TabsContent>
 
-          {/* ADMIN */}
-          <TabsContent value="admin" className="mt-6 space-y-4">
-            <EndpointCard method="GET" path="/api/admin/connection" description="Returns the current GitHub OAuth connection status.">
-              <CodeBlock code={`curl ${PROXY_URL}/api/admin/connection`} />
-            </EndpointCard>
-
-            <EndpointCard method="POST" path="/api/admin/connection/test" description="Tests the stored OAuth token against GitHub and Copilot APIs.">
-              <CodeBlock code={`curl -X POST ${PROXY_URL}/api/admin/connection/test`} />
-            </EndpointCard>
-
-            <EndpointCard method="POST" path="/api/admin/connection/ping" description="Sends a real message to Copilot and returns the response with latency.">
-              <CodeBlock code={`curl -X POST ${PROXY_URL}/api/admin/connection/ping`} />
-            </EndpointCard>
-
-            <EndpointCard method="POST" path="/api/admin/connection/oauth/start" description="Starts the GitHub device OAuth flow. Returns a user code to enter at GitHub.">
-              <CodeBlock code={`curl -X POST ${PROXY_URL}/api/admin/connection/oauth/start`} />
-              <CodeBlock
-                language="json"
-                code={`{
-  "userCode": "ABCD-1234",
-  "verificationUri": "https://github.com/login/device",
-  "deviceCode": "...",
-  "expiresIn": 899,
-  "interval": 5
+          {/* MODELS */}
+          <TabsContent value="models" className="mt-6 space-y-4">
+            <EndpointCard
+              method="GET"
+              path="/api/models"
+              description="Returns the models available to the calling API key. If the key has no scope restrictions, every active upstream model is returned."
+            >
+              <div className="space-y-2">
+                <SectionLabel>Response</SectionLabel>
+                <CodeBlock
+                  language="json"
+                  code={`{
+  "models": [
+    {
+      "id": "gpt-4o",
+      "name": "GPT-4o",
+      "vendor": "OpenAI",
+      "version": "2024-08-06",
+      "preview": false,
+      "chat_enabled": true,
+      "supported_endpoints": ["/chat/completions"],
+      "capabilities": {
+        "type": "chat",
+        "family": "gpt-4o",
+        "context_window": 128000,
+        "max_output_tokens": 16384
+      }
+    }
+  ],
+  "default_model": "gpt-4o",
+  "total": 1,
+  "chat_capable": 1
 }`}
-              />
-            </EndpointCard>
-
-            <EndpointCard method="POST" path="/api/admin/connection/oauth/poll" description={`Polls for OAuth completion. Call repeatedly until status is "success" or "expired".`}>
-              <CodeBlock
-                code={`curl -X POST ${PROXY_URL}/api/admin/connection/oauth/poll \\
-  -H "Content-Type: application/json" \\
-  -d '{"deviceCode": "..."}'`}
-              />
-            </EndpointCard>
-
-            <EndpointCard method="GET" path="/api/admin/models" description="Returns all available Copilot models with capabilities, context limits, and categories.">
-              <CodeBlock code={`curl ${PROXY_URL}/api/admin/models`} />
-            </EndpointCard>
-
-            <EndpointCard method="GET" path="/api/admin/account" description="Returns Copilot plan info, quotas, and enabled features.">
-              <CodeBlock code={`curl ${PROXY_URL}/api/admin/account`} />
-            </EndpointCard>
-
-            <EndpointCard method="GET" path="/api/admin/settings" description="Returns all app settings (e.g., default_model).">
-              <CodeBlock code={`curl ${PROXY_URL}/api/admin/settings`} />
-            </EndpointCard>
-
-            <EndpointCard method="PUT" path="/api/admin/settings/:key" description="Update a setting. Currently supports default_model.">
-              <CodeBlock
-                code={`curl -X PUT ${PROXY_URL}/api/admin/settings/default_model \\
-  -H "Content-Type: application/json" \\
-  -d '{"value": "claude-sonnet-4"}'`}
-              />
+                />
+              </div>
+              <div className="space-y-2">
+                <SectionLabel>Example · curl</SectionLabel>
+                <CodeBlock
+                  code={`curl ${PROXY_URL}/api/models \\
+  -H "Authorization: Bearer wm_yourkeyhere"`}
+                />
+              </div>
             </EndpointCard>
           </TabsContent>
 
           {/* HEALTH */}
           <TabsContent value="health" className="mt-6 space-y-4">
-            <EndpointCard method="GET" path="/health" description="Health check endpoint. No authentication required.">
+            <EndpointCard
+              method="GET"
+              path="/health"
+              description="Liveness + dependency check. No auth required. Returns 200 when database and upstream GitHub are both reachable; 503 otherwise."
+            >
               <CodeBlock code={`curl ${PROXY_URL}/health`} />
-              <CodeBlock language="json" code={`{ "status": "ok", "uptime": 12345 }`} />
+              <CodeBlock
+                language="json"
+                code={`{
+  "status": "healthy",
+  "checks": {
+    "database": "connected",
+    "github": { "status": "connected", "username": "octocat" }
+  },
+  "timestamp": "2025-05-16T12:34:56.789Z"
+}`}
+              />
             </EndpointCard>
           </TabsContent>
         </Tabs>
       </div>
 
-      {/* Architecture */}
-      <section className="space-y-3">
-        <SectionLabel>// Architecture</SectionLabel>
-        <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/60 backdrop-blur-md">
-          <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-copilot-purple/40 to-transparent" />
-          <div className="px-6 py-5 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Wingman sits between your application and the GitHub Copilot API:
+      {/* Reverse-proxy guide */}
+      <ReverseProxyGuide />
+    </div>
+  );
+}
+
+function ReverseProxyGuide() {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Network className="w-3.5 h-3.5 text-accent" />
+        <SectionLabel>// Reverse-Proxy Setup</SectionLabel>
+      </div>
+      <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/60 backdrop-blur-md">
+        <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-accent/40 to-transparent" />
+        <div className="px-4 sm:px-6 py-5 space-y-5">
+          <p className="text-sm text-muted-foreground max-w-3xl">
+            Wingman has two HTTP services: the Next.js web UI (default
+            <code className="font-mono text-xs px-1.5 py-0.5 rounded mx-1 bg-secondary/60 text-foreground border border-border/60">
+              3000
+            </code>
+            ) and the Express proxy (default
+            <code className="font-mono text-xs px-1.5 py-0.5 rounded mx-1 bg-secondary/60 text-foreground border border-border/60">
+              3200
+            </code>
+            ). Behind a reverse proxy you typically expose them on
+            <em> one </em>public hostname under different path prefixes —
+            <code className="font-mono text-xs px-1.5 py-0.5 rounded mx-1 bg-secondary/60 text-foreground border border-border/60">
+              /
+            </code>
+            goes to the web UI,
+            <code className="font-mono text-xs px-1.5 py-0.5 rounded mx-1 bg-secondary/60 text-foreground border border-border/60">
+              /api/
+            </code>
+            and
+            <code className="font-mono text-xs px-1.5 py-0.5 rounded mx-1 bg-secondary/60 text-foreground border border-border/60">
+              /health
+            </code>
+            and
+            <code className="font-mono text-xs px-1.5 py-0.5 rounded mx-1 bg-secondary/60 text-foreground border border-border/60">
+              /openapi.json
+            </code>
+            go to the proxy. SSE streaming must not be buffered.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <RpStep
+              num={1}
+              title="Decide a layout"
+              body="Either keep both services on different ports of the same host (simplest, recommended) or split them onto subdomains (chat.example.com + api.example.com)."
+            />
+            <RpStep
+              num={2}
+              title="Forward streams unbuffered"
+              body="Disable response buffering for /api/chat — the SSE delta stream must pass through in real time."
+            />
+            <RpStep
+              num={3}
+              title="Tell the web UI where the proxy lives"
+              body="Set NEXT_PUBLIC_PROXY_URL at build time of the web app so its fetch() calls point at the public proxy URL."
+            />
+          </div>
+
+          <div className="space-y-3">
+            <SectionLabel>// Env vars</SectionLabel>
+            <CodeBlock
+              language="bash"
+              code={`# .env on the host that builds the web image
+NEXT_PUBLIC_PROXY_URL=https://wingman.example.com   # public URL of the proxy
+INTERNAL_API_KEY=...                                # shared with the proxy
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...                    # optional, for push
+
+# .env on the proxy
+PROXY_PORT=3200
+DATABASE_URL=postgres://wingman:password@db:5432/wingman
+REDIS_URL=redis://redis:6379
+ENCRYPTION_KEY=...                                  # 32-byte hex
+INTERNAL_API_KEY=...                                # must match the web env`}
+            />
+            <p className="font-mono text-[11px] text-muted-foreground/80 tracking-wide">
+              <strong className="text-foreground/90">Important:</strong>{" "}
+              <code className="text-copilot-purple">NEXT_PUBLIC_*</code> values
+              are embedded into the JS bundle at build time. Rebuild the web
+              image whenever the public proxy URL changes.
             </p>
-            <pre className="rounded-xl border border-border/60 bg-background/50 backdrop-blur-md px-5 py-4 text-[12px] font-mono overflow-x-auto leading-relaxed text-foreground/80 scroll-sleek">
-{`Your App ──▶ Wingman (port 3200) ──▶ GitHub Copilot API
-                │
-                ├── OAuth token management (encrypted in PostgreSQL)
-                ├── Session / conversation history
-                ├── Context window management (8k token budget)
-                ├── Rate limiting
-                └── Model selection & routing`}
-            </pre>
-            <ul className="space-y-1.5 text-sm text-muted-foreground">
-              <li className="flex items-start gap-2.5">
-                <span className="font-mono text-[10px] text-copilot-purple mt-1.5">▸</span>
-                <span>
-                  <strong className="text-foreground font-medium">Proxy:</strong> Express 5 + TypeScript on port 3200
-                </span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="font-mono text-[10px] text-copilot-purple mt-1.5">▸</span>
-                <span>
-                  <strong className="text-foreground font-medium">Database:</strong> PostgreSQL (sessions, messages, tokens, settings)
-                </span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="font-mono text-[10px] text-copilot-purple mt-1.5">▸</span>
-                <span>
-                  <strong className="text-foreground font-medium">Auth:</strong> GitHub Device OAuth flow (same as VS Code Copilot)
-                </span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="font-mono text-[10px] text-copilot-purple mt-1.5">▸</span>
-                <span>
-                  <strong className="text-foreground font-medium">Token exchange:</strong> GitHub OAuth token &rarr; Copilot JWT (auto-refreshed)
-                </span>
-              </li>
-              <li className="flex items-start gap-2.5">
-                <span className="font-mono text-[10px] text-copilot-purple mt-1.5">▸</span>
-                <span>
-                  <strong className="text-foreground font-medium">Headers:</strong> Mimics VS Code Copilot extension (
-                  <code className="font-mono text-xs">Copilot-Integration-Id: vscode-chat</code>)
-                </span>
-              </li>
-            </ul>
+          </div>
+
+          <div className="space-y-3">
+            <SectionLabel>// nginx — single host, path-based</SectionLabel>
+            <CodeBlock
+              language="nginx"
+              code={`# /etc/nginx/sites-available/wingman.conf
+server {
+  listen 443 ssl http2;
+  server_name wingman.example.com;
+
+  ssl_certificate     /etc/letsencrypt/live/wingman.example.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/wingman.example.com/privkey.pem;
+
+  # ── Proxy API (port 3200) ───────────────────────────────────
+  location /api/ {
+    proxy_pass http://127.0.0.1:3200;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host  $host;
+
+    # SSE — keep the stream alive and don't buffer chunks
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 1h;
+    proxy_send_timeout 1h;
+    chunked_transfer_encoding on;
+  }
+
+  location = /openapi.json { proxy_pass http://127.0.0.1:3200; }
+  location = /health       { proxy_pass http://127.0.0.1:3200; }
+
+  # ── Web UI (port 3000) ──────────────────────────────────────
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host  $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+  }
+
+  client_max_body_size 25m;   # base64-encoded images on /api/chat
+}`}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <SectionLabel>// Caddy — single host, path-based</SectionLabel>
+            <CodeBlock
+              language="caddyfile"
+              code={`wingman.example.com {
+  encode zstd gzip
+  request_body {
+    max_size 25MB
+  }
+
+  # Streaming-safe routes to the proxy (3200)
+  @proxy path /api/* /openapi.json /health
+  handle @proxy {
+    reverse_proxy 127.0.0.1:3200 {
+      flush_interval -1        # never buffer — required for SSE
+      transport http {
+        read_timeout 1h
+        write_timeout 1h
+      }
+    }
+  }
+
+  # Everything else → web UI (3000)
+  handle {
+    reverse_proxy 127.0.0.1:3000
+  }
+}`}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <SectionLabel>// Traefik + docker-compose labels</SectionLabel>
+            <CodeBlock
+              language="yaml"
+              code={`# docker-compose.yml fragment
+services:
+  proxy:
+    image: wingman-proxy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wingman-api.rule=Host(\`wingman.example.com\`) && (PathPrefix(\`/api\`) || Path(\`/openapi.json\`) || Path(\`/health\`))
+      - traefik.http.routers.wingman-api.tls=true
+      - traefik.http.routers.wingman-api.tls.certresolver=le
+      - traefik.http.services.wingman-api.loadbalancer.server.port=3200
+      # Disable buffering so the SSE stream flushes immediately
+      - traefik.http.middlewares.no-buffer.buffering.maxRequestBodyBytes=26214400
+      - traefik.http.routers.wingman-api.middlewares=no-buffer
+  web:
+    image: wingman-web
+    environment:
+      NEXT_PUBLIC_PROXY_URL: https://wingman.example.com
+      INTERNAL_API_KEY: \${INTERNAL_API_KEY}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wingman-web.rule=Host(\`wingman.example.com\`)
+      - traefik.http.routers.wingman-web.tls=true
+      - traefik.http.routers.wingman-web.tls.certresolver=le
+      - traefik.http.services.wingman-web.loadbalancer.server.port=3000
+      - traefik.http.routers.wingman-web.priority=1
+      - traefik.http.routers.wingman-api.priority=10`}
+            />
+            <p className="font-mono text-[11px] text-muted-foreground/80 tracking-wide">
+              Higher <code className="text-copilot-purple">priority</code> on the
+              API router makes Traefik evaluate the path predicate before the
+              catch-all web router.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <SectionLabel>// Split-host layout (proxy on a different domain)</SectionLabel>
+            <p className="text-sm text-muted-foreground max-w-3xl">
+              If you prefer keeping the API on its own host (e.g.{" "}
+              <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-secondary/60 text-foreground border border-border/60">
+                api.example.com
+              </code>{" "}
+              ), set the web UI's public URL accordingly and rely on the
+              proxy's existing CORS allowlist — by default it accepts any
+              localhost origin, so in production you'll want to widen it.
+            </p>
+            <CodeBlock
+              language="bash"
+              code={`# Web build
+NEXT_PUBLIC_PROXY_URL=https://api.example.com
+
+# Proxy — allow your web origin via CORS (edit proxy/src/server.ts)
+#   origin: ["https://wingman.example.com", "https://api.example.com"]`}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <SectionLabel>// Smoke tests</SectionLabel>
+            <CodeBlock
+              code={`# 1. Spec reachable through the proxy
+curl https://wingman.example.com/openapi.json | jq .info.title
+
+# 2. Auth + non-streaming chat
+curl https://wingman.example.com/api/chat \\
+  -H "Authorization: Bearer wm_yourkey" \\
+  -H "Content-Type: application/json" \\
+  -d '{"sessionKey":"smoke-1","message":"ping","model":"gpt-4o"}'
+
+# 3. Streaming — confirm bytes arrive immediately, not in one batch
+curl -N https://wingman.example.com/api/chat \\
+  -H "Authorization: Bearer wm_yourkey" \\
+  -H "Content-Type: application/json" \\
+  -d '{"sessionKey":"smoke-2","message":"count to 5","stream":true}'`}
+            />
+            <p className="font-mono text-[11px] text-muted-foreground/80 tracking-wide">
+              If the streaming call delivers the whole response in one chunk,
+              your reverse proxy is buffering. Re-check{" "}
+              <code className="text-copilot-purple">proxy_buffering off</code>{" "}
+              (nginx) or{" "}
+              <code className="text-copilot-purple">flush_interval -1</code>{" "}
+              (Caddy).
+            </p>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
+
+function RpStep({ num, title, body }: { num: number; title: string; body: string }) {
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-border/70 bg-background/50 px-4 py-4">
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-accent/30 to-transparent"
+      />
+      <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-accent">
+        Step {num}
+      </p>
+      <p className="text-sm font-medium mt-1">{title}</p>
+      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{body}</p>
     </div>
   );
 }

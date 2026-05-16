@@ -20,6 +20,9 @@ RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
+ARG APP_VERSION=0.0.0
+RUN echo "$APP_VERSION" > ./VERSION
+
 ENV NODE_ENV=production
 ENV PROXY_PORT=3200
 

@@ -13,8 +13,7 @@ import {
   BarChart3,
   Infinity as InfinityIcon,
 } from "lucide-react";
-
-const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL || "http://localhost:3200";
+import { adminFetch } from "@/lib/admin-api";
 
 interface AccountData {
   user: {
@@ -69,9 +68,9 @@ export default function AdminDashboard() {
     async function load() {
       try {
         const [accRes, connRes, modelsRes] = await Promise.all([
-          fetch(`${PROXY_URL}/api/admin/account`),
-          fetch(`${PROXY_URL}/api/admin/connection`),
-          fetch(`${PROXY_URL}/api/admin/models`),
+          adminFetch("/api/admin/account"),
+          adminFetch("/api/admin/connection"),
+          adminFetch("/api/admin/models"),
         ]);
         if (accRes.ok) setAccount(await accRes.json());
         if (connRes.ok) setConnection(await connRes.json());

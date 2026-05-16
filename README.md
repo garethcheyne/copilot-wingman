@@ -38,16 +38,16 @@ Wingman gives you a private, self-hosted chat interface that routes through GitH
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────────┐
-│   Web UI     │────▶│  Proxy API   │────▶│  GitHub Copilot  │
-│  (Next.js)   │     │  (Express)   │     │    Models API     │
+│   Web UI     │───▶│ Proxy API  │────▶│  GitHub Copilot │
+│  (Next.js)   │     │  (Express)   │     │    Models API    │
 │  Port 3000   │     │  Port 3200   │     └──────────────────┘
 └──────────────┘     └──────┬───────┘
                             │
                     ┌───────┴───────┐
                     │               │
               ┌─────┴─────┐  ┌─────┴─────┐
-              │ PostgreSQL │  │   Redis   │
-              │  Port 5432 │  │ Port 6379 │
+              │ PostgreSQL│  │   Redis   │
+              │  Port 5432│  │ Port 6379 │
               └───────────┘  └───────────┘
 ```
 

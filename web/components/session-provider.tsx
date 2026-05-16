@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { adminFetch } from "@/lib/admin-api";
 
 const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL ?? "http://localhost:3200";
 const STORAGE_KEY = "wingman_active_session";
@@ -58,7 +59,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const refreshSessions = useCallback(async () => {
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/sessions`);
+      const res = await adminFetch("/api/admin/sessions");
       if (!res.ok) return;
       const data = await res.json();
       const list: SessionInfo[] = (data.sessions || []).map((s: any) => ({
@@ -95,7 +96,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const deleteSessionFn = useCallback(async (sessionId: string) => {
     try {
       const session = sessions.find((s) => s.id === sessionId);
-      await fetch(`${PROXY_URL}/api/admin/sessions/${sessionId}`, { method: "DELETE" });
+      await adminFetch(`/api/admin/sessions/${sessionId}`, { method: "DELETE" });
       // If we deleted the active session, create a new one
       if (session?.sessionKey === activeSessionKey) {
         setActiveSessionKey(crypto.randomUUID());
@@ -108,7 +109,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const loadSessionMessages = useCallback(async (sessionId: string): Promise<SessionMessage[]> => {
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/sessions/${sessionId}`);
+      const res = await adminFetch(`/api/admin/sessions/${sessionId}`);
       if (!res.ok) return [];
       const data = await res.json();
       return (data.messages || []).map((m: any) => ({

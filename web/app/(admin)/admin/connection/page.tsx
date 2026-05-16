@@ -14,8 +14,7 @@ import {
   Radio,
   Activity,
 } from "lucide-react";
-
-const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL || "http://localhost:3200";
+import { adminFetch } from "@/lib/admin-api";
 
 export default function ConnectionPage() {
   const [pinging, setPinging] = useState(false);
@@ -48,7 +47,7 @@ export default function ConnectionPage() {
 
   const checkStatus = async () => {
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/connection`);
+      const res = await adminFetch("/api/admin/connection");
       if (res.ok) {
         const data = await res.json();
         if (data.connection) {
@@ -81,7 +80,7 @@ export default function ConnectionPage() {
     setOauthDevice(null);
 
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/connection/oauth/start`, {
+      const res = await adminFetch("/api/admin/connection/oauth/start", {
         method: "POST",
       });
       const data = await res.json();
@@ -108,9 +107,8 @@ export default function ConnectionPage() {
 
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`${PROXY_URL}/api/admin/connection/oauth/poll`, {
+        const res = await adminFetch("/api/admin/connection/oauth/poll", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ deviceCode }),
         });
         const data = await res.json();
@@ -163,7 +161,7 @@ export default function ConnectionPage() {
     setMessage("");
 
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/connection/test`, {
+      const res = await adminFetch("/api/admin/connection/test", {
         method: "POST",
       });
       const data = await res.json();
@@ -198,7 +196,7 @@ export default function ConnectionPage() {
     if (!connection?.id) return;
     setDeleting(true);
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/connection/${connection.id}`, {
+      const res = await adminFetch(`/api/admin/connection/${connection.id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -222,7 +220,7 @@ export default function ConnectionPage() {
     setMessage("");
 
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/connection/ping`, {
+      const res = await adminFetch("/api/admin/connection/ping", {
         method: "POST",
       });
       const data = await res.json();

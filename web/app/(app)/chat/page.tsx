@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/components/session-provider";
 import { ChatMarkdown } from "@/components/chat-markdown";
+import { MobileNavTrigger } from "@/components/mobile-nav";
+import { adminFetch } from "@/lib/admin-api";
+import { notifyWhenHidden } from "@/lib/notifications";
 import "highlight.js/styles/github-dark.css";
 
 interface Message {
@@ -66,8 +69,8 @@ export default function ChatPage() {
     const load = async () => {
       try {
         const [modelsRes, settingsRes] = await Promise.all([
-          fetch(`${PROXY_URL}/api/admin/models`),
-          fetch(`${PROXY_URL}/api/admin/settings`),
+          adminFetch("/api/admin/models"),
+          adminFetch("/api/admin/settings"),
         ]);
         if (modelsRes.ok) {
           const data = await modelsRes.json();
@@ -243,6 +246,18 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
       refreshSessions();
+      // If the tab is in the background, surface a local browser notification
+      // so the user knows their reply is ready. No-op when permission is
+      // denied/unset or when the tab is already visible.
+      notifyWhenHidden({
+        title: "Wingman reply ready",
+        body: content
+          ? content.length > 80
+            ? `${content.slice(0, 80)}…`
+            : content
+          : "Your response is ready.",
+        url: "/chat",
+      });
     }
   };
 
@@ -258,34 +273,35 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-full relative">
       {/* Header */}
-      <header className="h-14 border-b border-border/70 flex items-center px-6 shrink-0 justify-between bg-background/40 backdrop-blur-md relative z-10">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="pulse-ring text-copilot-green">
+      <header className="h-14 border-b border-border/70 flex items-center px-3 sm:px-6 shrink-0 justify-between gap-2 bg-background/40 backdrop-blur-md relative z-10">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <MobileNavTrigger label="Open chat history" />
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="pulse-ring text-copilot-green shrink-0">
               <span className="bg-copilot-green" />
             </span>
-            <h1 className="text-sm font-semibold tracking-tight">
+            <h1 className="text-sm font-semibold tracking-tight truncate">
               {messages.length > 0 ? "Chat" : "New Conversation"}
             </h1>
           </div>
-          <span className="font-mono text-[10px] tracking-wider text-muted-foreground/70 px-2 py-0.5 rounded border border-border/60 bg-card/50">
+          <span className="font-mono text-[10px] tracking-wider text-muted-foreground/70 px-2 py-0.5 rounded border border-border/60 bg-card/50 hidden md:inline whitespace-nowrap">
             ~/session/{sessionShort}
           </span>
         </div>
 
         {/* Model picker */}
-        <div className="relative" ref={modelPickerRef}>
+        <div className="relative shrink-0" ref={modelPickerRef}>
           <button
             onClick={() => setShowModelPicker(!showModelPicker)}
-            className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-md text-xs border border-border bg-card/70 hover:bg-card hover:border-primary/40 transition-colors backdrop-blur-md"
+            className="flex items-center gap-1.5 sm:gap-2 pl-2.5 sm:pl-3 pr-2 py-1.5 rounded-md text-xs border border-border bg-card/70 hover:bg-card hover:border-primary/40 transition-colors backdrop-blur-md max-w-[55vw] sm:max-w-none"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-copilot-purple shadow-[0_0_8px_hsl(258_90%_66%/0.8)]" />
-            <span className="font-mono text-muted-foreground tracking-wider uppercase text-[9px]">model</span>
-            <span className="font-medium">{selectedModel}</span>
-            <ChevronDown className="w-3 h-3 text-muted-foreground" />
+            <span className="w-1.5 h-1.5 rounded-full bg-copilot-purple shadow-[0_0_8px_hsl(258_90%_66%/0.8)] shrink-0" />
+            <span className="font-mono text-muted-foreground tracking-wider uppercase text-[9px] hidden sm:inline">model</span>
+            <span className="font-medium truncate">{selectedModel}</span>
+            <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
           </button>
           {showModelPicker && models.length > 0 && (
-            <div className="absolute right-0 top-full mt-2 z-50 w-80 max-h-96 overflow-auto rounded-lg border border-border bg-popover/95 backdrop-blur-xl shadow-2xl shadow-black/40 scroll-sleek">
+            <div className="absolute right-0 top-full mt-2 z-50 w-[min(20rem,calc(100vw-1.5rem))] max-h-[70vh] overflow-auto rounded-lg border border-border bg-popover/95 backdrop-blur-xl shadow-2xl shadow-black/40 scroll-sleek">
               <div className="sticky top-0 px-3 py-2 border-b border-border/60 bg-popover/95 backdrop-blur-xl">
                 <p className="label-mono">// Available models</p>
               </div>
@@ -317,7 +333,7 @@ export default function ChatPage() {
       {/* Messages area */}
       <div className="flex-1 overflow-auto scroll-sleek relative">
         {messages.length === 0 ? (
-          <div className="relative max-w-3xl mx-auto px-6 py-16 flex flex-col items-center justify-center min-h-full gap-8">
+          <div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col items-center justify-center min-h-full gap-6 sm:gap-8">
             {/* Floating gradient orb */}
             <div
               aria-hidden
@@ -332,17 +348,17 @@ export default function ChatPage() {
                   alt="Wingman"
                   width={120}
                   height={120}
-                  className="relative drop-shadow-[0_8px_32px_hsl(258_90%_66%/0.5)]"
+                  className="relative drop-shadow-[0_8px_32px_hsl(258_90%_66%/0.5)] w-20 h-20 sm:w-30 sm:h-30"
                   priority
                 />
               </div>
 
-              <div className="text-center space-y-3">
+              <div className="text-center space-y-2 sm:space-y-3">
                 <p className="label-mono text-primary/80">// Ready</p>
-                <h2 className="text-5xl font-display font-bold tracking-tight leading-none">
+                <h2 className="text-3xl sm:text-5xl font-display font-bold tracking-tight leading-none">
                   Ask <span className="text-copilot-gradient font-display font-bold">Wingman</span>
                 </h2>
-                <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                <p className="text-muted-foreground text-xs sm:text-sm max-w-md mx-auto px-2">
                   Self-hosted proxy &middot; streaming responses &middot; full model catalog
                 </p>
               </div>
@@ -372,7 +388,7 @@ export default function ChatPage() {
             </div>
           </div>
         ) : (
-          <div className="max-w-3xl mx-auto px-6 py-8 space-y-8">
+          <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-8">
             {messages.map((msg, i) => {
               const isUser = msg.role === "user";
               return (
@@ -442,7 +458,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-border/70 p-4 shrink-0 bg-background/40 backdrop-blur-md relative z-10">
+      <div className="border-t border-border/70 p-3 sm:p-4 shrink-0 bg-background/40 backdrop-blur-md relative z-10 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="max-w-3xl mx-auto">
           {/* Image preview strip */}
           {attachedImages.length > 0 && (

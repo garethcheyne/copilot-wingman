@@ -4,7 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { Plus, Settings, Trash2, MessageSquare } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useSession } from "@/components/session-provider";
+import { useMobileNav } from "@/components/mobile-nav";
 
 function timeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -17,13 +19,13 @@ function timeAgo(date: string): string {
   return `${days}d ago`;
 }
 
-export function SessionSidebar() {
+function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
   const { sessions, activeSessionKey, createNewSession, switchSession, deleteSession } = useSession();
 
   return (
-    <aside className="w-64 border-r border-border bg-sidebar/60 backdrop-blur-xl flex flex-col relative">
+    <div className="flex flex-col h-full overflow-hidden relative">
       {/* edge glow */}
-      <div aria-hidden className="absolute inset-y-0 right-0 w-px bg-linear-to-b from-transparent via-primary/30 to-transparent pointer-events-none" />
+      <div aria-hidden className="absolute inset-y-0 right-0 w-px bg-linear-to-b from-transparent via-primary/30 to-transparent pointer-events-none hidden lg:block" />
 
       {/* Header */}
       <div className="px-4 pt-5 pb-4">
@@ -48,14 +50,17 @@ export function SessionSidebar() {
       <div className="px-3 pb-3">
         <button
           type="button"
-          onClick={createNewSession}
-          className="shimmer-hover group w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-card hover:bg-secondary border border-border hover:border-primary/40 transition-colors relative"
+          onClick={() => {
+            createNewSession();
+            onItemSelect?.();
+          }}
+          className="shimmer-hover group w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium bg-card hover:bg-secondary border border-border hover:border-primary/40 transition-colors relative min-h-11"
         >
           <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-primary/15 text-primary">
             <Plus className="w-3 h-3" strokeWidth={2.5} />
           </span>
           New Chat
-          <kbd className="ml-auto font-mono text-[9px] text-muted-foreground tracking-wider opacity-60 group-hover:opacity-100">
+          <kbd className="ml-auto font-mono text-[9px] text-muted-foreground tracking-wider opacity-60 group-hover:opacity-100 hidden sm:inline">
             ⌘N
           </kbd>
         </button>
@@ -85,12 +90,21 @@ export function SessionSidebar() {
                   key={s.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => switchSession(s.sessionKey)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); switchSession(s.sessionKey); } }}
-                  className={`group w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors flex items-start gap-2.5 cursor-pointer ${
+                  onClick={() => {
+                    switchSession(s.sessionKey);
+                    onItemSelect?.();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      switchSession(s.sessionKey);
+                      onItemSelect?.();
+                    }
+                  }}
+                  className={`group w-full text-left px-3 py-3 rounded-lg text-sm transition-colors flex items-start gap-2.5 cursor-pointer min-h-12 ${
                     isActive
                       ? "bg-secondary/70 border border-primary/30"
-                      : "hover:bg-secondary/40 border border-transparent"
+                      : "hover:bg-secondary/40 active:bg-secondary/60 border border-transparent"
                   }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />
@@ -109,9 +123,9 @@ export function SessionSidebar() {
                       e.stopPropagation();
                       deleteSession(s.id);
                     }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/20 hover:text-destructive"
+                    className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-2 -m-1 rounded hover:bg-destructive/20 hover:text-destructive"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               );
@@ -136,7 +150,8 @@ export function SessionSidebar() {
         </div>
         <Link
           href="/admin"
-          className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+          onClick={onItemSelect}
+          className="flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors min-h-11"
         >
           <Settings className="w-3.5 h-3.5" />
           <span>Admin</span>
@@ -145,6 +160,29 @@ export function SessionSidebar() {
           </span>
         </Link>
       </div>
-    </aside>
+    </div>
+  );
+}
+
+export function SessionSidebar() {
+  const { open, setOpen } = useMobileNav();
+
+  return (
+    <>
+      {/* Desktop: static aside */}
+      <aside className="hidden lg:flex w-64 border-r border-border bg-sidebar/60 backdrop-blur-xl flex-col h-full overflow-hidden relative">
+        <SessionSidebarBody />
+      </aside>
+
+      {/* Mobile: sheet drawer */}
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
+          side="left"
+          className="w-72 max-w-[85vw] p-0 bg-sidebar/95 backdrop-blur-xl border-r border-border lg:hidden"
+        >
+          <SessionSidebarBody onItemSelect={() => setOpen(false)} />
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
