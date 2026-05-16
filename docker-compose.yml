@@ -1,0 +1,68 @@
+name: wingman
+
+services:
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_PROXY_URL=http://localhost:${PROXY_PORT:-3200}
+        - NEXT_PUBLIC_API_KEY=${INTERNAL_API_KEY}
+    container_name: wingman-web
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - proxy
+    restart: unless-stopped
+
+  proxy:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    container_name: wingman-proxy
+    ports:
+      - "${PROXY_PORT:-3200}:3200"
+    environment:
+      - PROXY_PORT=3200
+      - DATABASE_URL=postgresql://wingman:password@postgres:5432/wingman
+      - REDIS_URL=redis://redis:6379
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: wingman-postgres
+    environment:
+      POSTGRES_USER: wingman
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: wingman
+    volumes:
+      - wingman-pg-data:/var/lib/postgresql/data
+      - ./proxy/src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5440}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wingman -d wingman"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: wingman-redis
+    volumes:
+      - wingman-redis-data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    restart: unless-stopped
+
+volumes:
+  wingman-pg-data:
+  wingman-redis-data:

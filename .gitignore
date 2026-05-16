@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+proxy/dist/
+web/.next/
+web/out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Docker volumes
+postgres-data/
+redis-data/
+
+# Misc
+*.log
+npm-debug.log*

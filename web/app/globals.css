@@ -1,0 +1,365 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-jetbrains-mono);
+  --font-display: var(--font-bricolage);
+  --font-heading: var(--font-bricolage);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-copilot-green: var(--copilot-green);
+  --color-copilot-purple: var(--copilot-purple);
+  --color-copilot-blue-glow: var(--copilot-blue-glow);
+}
+
+/* Light mode */
+:root {
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(222 47% 11%);
+  --card: hsl(0 0% 98%);
+  --card-foreground: hsl(222 47% 11%);
+  --popover: hsl(0 0% 98%);
+  --popover-foreground: hsl(222 47% 11%);
+  --primary: hsl(225 73% 50%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(220 14% 96%);
+  --secondary-foreground: hsl(222 47% 11%);
+  --muted: hsl(220 14% 96%);
+  --muted-foreground: hsl(215 16% 47%);
+  --accent: hsl(187 86% 38%);
+  --accent-foreground: hsl(0 0% 100%);
+  --destructive: hsl(0 72% 51%);
+  --border: hsl(220 13% 91%);
+  --input: hsl(220 13% 91%);
+  --ring: hsl(225 73% 50%);
+  --chart-1: hsl(225 73% 50%);
+  --chart-2: hsl(187 86% 38%);
+  --chart-3: hsl(142 71% 35%);
+  --chart-4: hsl(258 90% 55%);
+  --chart-5: hsl(0 72% 51%);
+  --radius: 0.5rem;
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(222 47% 11%);
+  --sidebar-primary: hsl(225 73% 50%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(220 14% 96%);
+  --sidebar-accent-foreground: hsl(222 47% 11%);
+  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-ring: hsl(225 73% 50%);
+
+  /* Copilot semantic colors */
+  --copilot-green: hsl(142 71% 35%);
+  --copilot-purple: hsl(258 90% 55%);
+  --copilot-blue-glow: hsl(225 73% 50% / 0.1);
+}
+
+/* Dark mode (default) — GitHub Copilot Dark */
+.dark {
+  --background: hsl(220 13% 7%);
+  --foreground: hsl(210 17% 90%);
+  --card: hsl(220 13% 9%);
+  --card-foreground: hsl(210 17% 90%);
+  --popover: hsl(220 13% 9%);
+  --popover-foreground: hsl(210 17% 90%);
+  --primary: hsl(225 73% 57%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(220 13% 14%);
+  --secondary-foreground: hsl(210 17% 82%);
+  --muted: hsl(220 13% 14%);
+  --muted-foreground: hsl(215 14% 55%);
+  --accent: hsl(187 86% 43%);
+  --accent-foreground: hsl(0 0% 100%);
+  --destructive: hsl(0 72% 51%);
+  --border: hsl(220 13% 18%);
+  --input: hsl(220 13% 18%);
+  --ring: hsl(225 73% 57%);
+  --chart-1: hsl(225 73% 57%);
+  --chart-2: hsl(187 86% 43%);
+  --chart-3: hsl(142 71% 45%);
+  --chart-4: hsl(258 90% 66%);
+  --chart-5: hsl(0 72% 51%);
+  --sidebar: hsl(220 13% 5%);
+  --sidebar-foreground: hsl(210 17% 90%);
+  --sidebar-primary: hsl(225 73% 57%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(220 13% 14%);
+  --sidebar-accent-foreground: hsl(210 17% 90%);
+  --sidebar-border: hsl(220 13% 18%);
+  --sidebar-ring: hsl(225 73% 57%);
+
+  /* Copilot semantic colors */
+  --copilot-green: hsl(142 71% 45%);
+  --copilot-purple: hsl(258 90% 66%);
+  --copilot-blue-glow: hsl(225 73% 57% / 0.15);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* ─── Mission Control atmosphere ────────────────────────────────── */
+
+/* Faint architectural grid — sits behind the whole app */
+.bg-grid {
+  background-image:
+    linear-gradient(to right, hsl(220 13% 18% / 0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(220 13% 18% / 0.35) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: -1px -1px;
+}
+:root:not(.dark) .bg-grid {
+  background-image:
+    linear-gradient(to right, hsl(220 13% 80% / 0.45) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(220 13% 80% / 0.45) 1px, transparent 1px);
+}
+
+/* SVG-encoded fractal noise — very subtle */
+.bg-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1   0 0 0 0 1   0 0 0 0 1   0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>");
+  opacity: 0.05;
+}
+
+/* Top-of-page vignette using the brand colors — used on root layout */
+.bg-vignette-copilot {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% -10%, hsl(225 73% 57% / 0.18), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 90% 0%, hsl(258 90% 66% / 0.12), transparent 65%);
+}
+
+/* Radial mesh gradient using the Copilot brand */
+.bg-mesh-copilot {
+  background-image:
+    radial-gradient(ellipse 60% 50% at 12% 18%, hsl(225 73% 57% / 0.30), transparent 60%),
+    radial-gradient(ellipse 50% 45% at 85% 22%, hsl(258 90% 66% / 0.28), transparent 60%),
+    radial-gradient(ellipse 70% 60% at 50% 95%, hsl(187 86% 43% / 0.22), transparent 65%);
+}
+
+/* Inner radial glow used inside the OAuth code centerpiece */
+.bg-oauth-glow {
+  background-image: radial-gradient(ellipse 60% 80% at 50% 50%, hsl(258 90% 66% / 0.18), transparent 70%);
+}
+
+/* Big chat empty-state orb */
+.bg-orb-copilot {
+  background-image:
+    radial-gradient(circle at 35% 35%, hsl(225 73% 57% / 0.85), transparent 55%),
+    radial-gradient(circle at 65% 60%, hsl(258 90% 66% / 0.85), transparent 55%),
+    radial-gradient(circle at 50% 50%, hsl(187 86% 43% / 0.45), transparent 70%);
+  filter: blur(48px);
+}
+
+/* The copilot gradient (from PLAN.md) */
+.bg-copilot-gradient {
+  background-image: linear-gradient(135deg, hsl(225 73% 57%) 0%, hsl(258 90% 66%) 50%, hsl(258 90% 86%) 100%);
+}
+.text-copilot-gradient {
+  background-image: linear-gradient(135deg, hsl(225 73% 57%) 0%, hsl(258 90% 66%) 50%, hsl(187 86% 60%) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Thin gradient border ring (use as a wrapper) */
+.ring-copilot-gradient {
+  position: relative;
+  isolation: isolate;
+}
+.ring-copilot-gradient::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, hsl(225 73% 57% / 0.8), hsl(258 90% 66% / 0.5) 50%, hsl(187 86% 43% / 0.6));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+          mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Glowing concentric pulse — for live status dots */
+.pulse-ring {
+  position: relative;
+  display: inline-flex;
+  width: 0.625rem;
+  height: 0.625rem;
+}
+.pulse-ring > span {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: hsl(var(--copilot-green-h, 142) var(--copilot-green-s, 71%) var(--copilot-green-l, 45%));
+}
+.pulse-ring::before,
+.pulse-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  animation: pulse-ring 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+.pulse-ring::after {
+  animation-delay: 1.2s;
+}
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  80%, 100% {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+/* Slow shimmer sweep for gradient CTAs on hover */
+@keyframes shimmer-sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+.shimmer-hover {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-hover::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 60%;
+  background: linear-gradient(100deg, transparent, hsl(0 0% 100% / 0.18), transparent);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+.shimmer-hover:hover::after {
+  animation: shimmer-sweep 1.4s ease-out;
+}
+
+/* Slow gradient orb float for the empty state */
+@keyframes orb-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(2%, -3%, 0) scale(1.06); }
+}
+.animate-orb-drift {
+  animation: orb-drift 14s ease-in-out infinite;
+}
+
+/* Page-load reveal — apply to children with stagger */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  opacity: 0;
+  animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.stagger-children > * {
+  opacity: 0;
+  animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.12s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.19s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.26s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.33s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.40s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.47s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.54s; }
+
+/* Streaming dot trio */
+@keyframes stream-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-3px); opacity: 1; }
+}
+.stream-dot {
+  animation: stream-bounce 1.2s ease-in-out infinite;
+}
+.stream-dot:nth-child(2) { animation-delay: 0.15s; }
+.stream-dot:nth-child(3) { animation-delay: 0.30s; }
+
+/* Mono spec labels */
+.label-mono {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: hsl(215 14% 55%);
+}
+
+/* Hairline divider between system rails */
+.rail-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, hsl(220 13% 18%) 20%, hsl(220 13% 18%) 80%, transparent);
+}
+
+/* Scrollbar polish on overflow-y areas */
+.scroll-sleek::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-sleek::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-sleek::-webkit-scrollbar-thumb {
+  background: hsl(220 13% 18%);
+  border-radius: 9999px;
+}
+.scroll-sleek::-webkit-scrollbar-thumb:hover {
+  background: hsl(220 13% 24%);
+}
