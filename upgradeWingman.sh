@@ -99,15 +99,19 @@ HEADER
 # 1. Pull latest code
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ $DO_PULL -eq 1 ]]; then
-  step "1/6  Pulling latest code"
+  step "1/6  Force-syncing code from origin"
   if [[ -d .git ]]; then
-    if ! git diff --quiet || ! git diff --cached --quiet; then
-      warn "Working tree has uncommitted changes — git pull may fail."
-    fi
     BRANCH="$(git rev-parse --abbrev-ref HEAD)"
     info "branch: $BRANCH"
-    git pull --ff-only
-    ok "code updated"
+    # Prod servers are read-only — any local edits are accidental and will
+    # be discarded. We fetch origin and hard-reset the working tree to it.
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+      warn "Discarding local changes on prod (this is expected)."
+    fi
+    git fetch origin "$BRANCH"
+    git reset --hard "origin/$BRANCH"
+    git clean -fd
+    ok "code synced to origin/$BRANCH ($(git rev-parse --short HEAD))"
   else
     warn "Not a git repo, skipping pull"
   fi
