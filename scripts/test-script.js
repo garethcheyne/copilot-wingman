@@ -85,6 +85,7 @@ const useStream = flag('stream', false) === true;
 const modelOverride = flag('model', null);
 const promptOverride = flag('prompt', null);
 const verbose = flag('verbose', false) === true;
+const deep = flag('deep', false) === true;
 
 if (!['local', 'prod'].includes(envName)) {
   console.error(`${c.red}--env must be 'local' or 'prod'${c.reset}`);
@@ -265,12 +266,166 @@ const tests = [
   },
 ];
 
+// ── Deep tests ──────────────────────────────────────────────────────────────
+// Extra checks enabled by --deep. Each one is independent and uses the key's
+// remembered first-allowed model so it works regardless of key scope.
+const deepTests = [
+  {
+    name: 'AUTH missing Authorization → 401',
+    run: async () => {
+      const { res, ms } = await request(`${baseUrl}/api/models`);
+      if (res.status !== 401 && res.status !== 403) {
+        throw new Error(`expected 401/403, got ${res.status}`);
+      }
+      return { ms, detail: `correctly rejected (${res.status})` };
+    },
+  },
+  {
+    name: 'AUTH bogus Bearer key → 401',
+    run: async () => {
+      const { res, ms } = await request(`${baseUrl}/api/models`, {
+        headers: { Authorization: 'Bearer wm_not_a_real_key_0000000000000000' },
+      });
+      if (res.status !== 401 && res.status !== 403) {
+        throw new Error(`expected 401/403, got ${res.status}`);
+      }
+      return { ms, detail: `correctly rejected (${res.status})` };
+    },
+  },
+  {
+    name: 'STREAM POST /api/chat (SSE)',
+    run: async (key) => {
+      const modelToUse = modelOverride || state(key).firstAllowedModel || 'gpt-4o';
+      const sessionKey = `test-${envName}-key${key.idx}-stream-${Date.now()}`;
+      const { res, ms } = await request(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key.value}` },
+        body: {
+          sessionKey,
+          message: 'Count from 1 to 5, comma separated, no spaces.',
+          model: modelToUse,
+          stream: true,
+        },
+        timeoutMs: 90_000,
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} — ${(await res.text().catch(() => '')).slice(0, 120)}`);
+      }
+      const snippet = await readStreamText(res, 8192);
+      if (!snippet.includes('data:')) {
+        throw new Error(`response did not look like SSE: ${snippet.slice(0, 80)}`);
+      }
+      return { ms, detail: `${modelToUse} streamed ${snippet.length}B` };
+    },
+  },
+  {
+    name: 'MULTI-TURN sessionKey remembers context',
+    run: async (key) => {
+      const modelToUse = modelOverride || state(key).firstAllowedModel || 'gpt-4o';
+      const sessionKey = `test-${envName}-key${key.idx}-multi-${Date.now()}`;
+
+      // Turn 1: establish a fact.
+      const r1 = await request(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key.value}` },
+        body: {
+          sessionKey,
+          message: 'My favourite colour is octarine. Reply with only the word OK.',
+          model: modelToUse,
+          stream: false,
+        },
+        timeoutMs: 90_000,
+      });
+      if (!r1.res.ok) throw new Error(`turn1 HTTP ${r1.res.status}`);
+      await r1.res.json();
+
+      // Turn 2: ask about it.
+      const r2 = await request(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key.value}` },
+        body: {
+          sessionKey,
+          message:
+            'What is my favourite colour? Reply with only one word in lowercase.',
+          model: modelToUse,
+          stream: false,
+        },
+        timeoutMs: 90_000,
+      });
+      if (!r2.res.ok) throw new Error(`turn2 HTTP ${r2.res.status}`);
+      const body = await r2.res.json();
+      const answer = String(
+        body?.choices?.[0]?.message?.content ?? body?.message ?? ''
+      )
+        .toLowerCase()
+        .replace(/[^a-z]/g, '');
+      const remembered = answer.includes('octarine');
+      if (!remembered) {
+        throw new Error(`context lost — answered "${answer.slice(0, 40)}"`);
+      }
+      return { ms: r1.ms + r2.ms, detail: `recalled across 2 turns ("${answer.slice(0, 20)}")` };
+    },
+  },
+  {
+    name: 'SYSTEM PROMPT is honoured',
+    run: async (key) => {
+      const modelToUse = modelOverride || state(key).firstAllowedModel || 'gpt-4o';
+      const sessionKey = `test-${envName}-key${key.idx}-sys-${Date.now()}`;
+      const { res, ms } = await request(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key.value}` },
+        body: {
+          sessionKey,
+          systemPrompt:
+            'You are a pirate. Every reply must start with the word "Arrr".',
+          message: 'Say hello in exactly one short sentence.',
+          model: modelToUse,
+          stream: false,
+        },
+        timeoutMs: 90_000,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = await res.json();
+      const content = String(
+        body?.choices?.[0]?.message?.content ?? body?.message ?? ''
+      ).trim();
+      if (!/^arrr/i.test(content)) {
+        throw new Error(`system prompt ignored — got "${content.slice(0, 60)}"`);
+      }
+      return { ms, detail: `"${content.slice(0, 50)}…"` };
+    },
+  },
+  {
+    name: 'AUTHZ unauthorized model → 403',
+    run: async (key) => {
+      const sessionKey = `test-${envName}-key${key.idx}-bad-${Date.now()}`;
+      // Use a fake model id that no key should ever be authorized for.
+      const { res, ms } = await request(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key.value}` },
+        body: {
+          sessionKey,
+          message: 'hi',
+          model: 'definitely-not-a-real-model-xyz',
+          stream: false,
+        },
+      });
+      if (res.status !== 403 && res.status !== 400 && res.status !== 404) {
+        throw new Error(`expected 4xx, got ${res.status}`);
+      }
+      return { ms, detail: `correctly rejected (${res.status})` };
+    },
+  },
+];
+
+const allTests = deep ? [...tests, ...deepTests] : tests;
+
 // ── Runner ──────────────────────────────────────────────────────────────────
 async function runForKey(key) {
   console.log(`\n${c.cyan}${c.bold}── Key #${key.idx} (${key.name}: ${maskKey(key.value)})${c.reset}`);
   let pass = 0;
   let fail = 0;
-  for (const t of tests) {
+  for (const t of allTests) {
     const name = typeof t.name === 'function' ? t.name() : t.name;
     process.stdout.write(`  ${c.dim}▸${c.reset} ${name} `);
     try {
@@ -291,7 +446,8 @@ async function runForKey(key) {
       `${c.blue}${baseUrl}${c.reset}  ${c.dim}[${envName}]${c.reset}\n` +
       `${c.dim}keys:${c.reset} ${keysToTest.map((k) => `#${k.idx}`).join(' ')}   ` +
       `${c.dim}model:${c.reset} ${testModel || '(first allowed)'}   ` +
-      `${c.dim}stream:${c.reset} ${useStream}`
+      `${c.dim}stream:${c.reset} ${useStream}   ` +
+      `${c.dim}deep:${c.reset} ${deep}`
   );
 
   let totalPass = 0;
