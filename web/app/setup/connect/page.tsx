@@ -29,10 +29,12 @@ export default function SetupConnectPage() {
     interval: number;
   } | null>(null);
   const [polling, setPolling] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
   // If GitHub is already connected, redirect to chat
   useEffect(() => {
@@ -53,6 +55,7 @@ export default function SetupConnectPage() {
     })();
     return () => {
       if (pollRef.current) clearTimeout(pollRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
     };
   }, [router]);
 
@@ -82,10 +85,25 @@ export default function SetupConnectPage() {
     }
   };
 
+  const startCountdown = (seconds: number) => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setCountdown(seconds);
+    countdownRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          if (countdownRef.current) clearInterval(countdownRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const startPolling = (deviceCode: string, interval: number) => {
     if (pollRef.current) clearTimeout(pollRef.current);
 
     const poll = (waitSec: number) => {
+      startCountdown(waitSec);
       pollRef.current = setTimeout(async () => {
         try {
           const res = await fetch(`${PROXY_URL}/api/admin/connection/oauth/poll`, {
@@ -97,17 +115,19 @@ export default function SetupConnectPage() {
 
           if (data.status === "success") {
             setPolling(false);
+            setCountdown(0);
             setDevice(null);
             const username = data.validation?.username || "GitHub";
             setSuccess(`Connected as ${username} — Copilot access confirmed!`);
             setTimeout(() => router.replace("/chat"), 1500);
           } else if (data.status === "expired" || data.status === "error") {
             setPolling(false);
+            setCountdown(0);
             setDevice(null);
             setError(data.error || "OAuth flow failed. Try again.");
           } else {
-            // Still pending — use server-provided interval if available
-            const nextWait = data.interval || waitSec;
+            // Still pending — use server-provided interval (slow_down) + 5s buffer
+            const nextWait = (data.interval || waitSec) + 5;
             poll(nextWait);
           }
         } catch {
@@ -320,7 +340,9 @@ export default function SetupConnectPage() {
               {polling && (
                 <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Waiting for authorization...
+                  {countdown > 0
+                    ? `Checking again in ${countdown}s...`
+                    : "Checking authorization..."}
                 </div>
               )}
             </div>
