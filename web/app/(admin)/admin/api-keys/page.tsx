@@ -51,7 +51,7 @@ interface AvailableModel {
   id: string;
   name: string;
   vendor: string;
-  model_picker_category?: string;
+  category?: string;
 }
 
 interface ApiKey {
@@ -150,7 +150,7 @@ export default function ApiKeysPage() {
       .then((data) => {
         if (data?.data) {
           setAvailableModels(
-            data.data.filter((m: AvailableModel) => m.model_picker_category)
+            data.data.filter((m: AvailableModel) => m.category)
           );
         }
       })
@@ -382,7 +382,7 @@ export default function ApiKeysPage() {
                   <ScrollArea className="h-44">
                     <div className="space-y-3 p-3">
                       {(["powerful", "versatile", "lightweight"] as const).map((cat) => {
-                        const models = availableModels.filter((m) => m.model_picker_category === cat);
+                        const models = availableModels.filter((m) => m.category === cat);
                         if (models.length === 0) return null;
                         return (
                           <div key={cat} className="space-y-1.5">
@@ -725,7 +725,7 @@ export default function ApiKeysPage() {
                   <ScrollArea className="h-44">
                     <div className="space-y-3 p-3">
                       {(["powerful", "versatile", "lightweight"] as const).map((cat) => {
-                        const models = availableModels.filter((m) => m.model_picker_category === cat);
+                        const models = availableModels.filter((m) => m.category === cat);
                         if (models.length === 0) return null;
                         return (
                           <div key={cat} className="space-y-1.5">
