@@ -58,7 +58,7 @@ export function MobileNavTrigger({
       type="button"
       aria-label={label}
       onClick={() => setOpen(true)}
-      className={`inline-flex lg:hidden items-center justify-center w-10 h-10 rounded-md border border-border/70 bg-card/70 backdrop-blur-md text-muted-foreground hover:text-foreground hover:border-primary/40 active:scale-95 transition-all ${className}`}
+      className={`inline-flex lg:hidden items-center justify-center w-10 h-10 -ml-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 active:scale-95 transition-all ${className}`}
     >
       <Menu className="w-5 h-5" />
     </button>
