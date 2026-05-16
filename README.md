@@ -5,7 +5,11 @@
 <h1 align="center">Wingman</h1>
 
 <p align="center">
-  <strong>Self-hosted AI proxy &amp; chat UI powered by your GitHub Copilot subscription</strong>
+  <strong>Built for Copilot &mdash; with Copilot.</strong>
+</p>
+
+<p align="center">
+  <em>A self-hosted AI proxy &amp; chat UI powered by your GitHub Copilot subscription &mdash; coded almost entirely with the same models it ships.</em>
 </p>
 
 <p align="center">
@@ -241,6 +245,19 @@ copilot-wingman/
 └── assets/
     └── wingman-ai.png
 ```
+
+## Acknowledgements
+
+A heartfelt thank-you to **[Anthropic](https://www.anthropic.com)** — parts of
+Wingman's API client, streaming helpers, and SSE plumbing were modeled on (and
+in places adapted directly from) the open-source
+[Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript).
+That SDK saved this project weeks of work. Open source like this is what makes
+side projects like Wingman possible.
+
+We're also indebted to **[GitHub Copilot](https://github.com/features/copilot)**
+— not just as the model backend Wingman proxies, but as the pair-programmer
+that wrote most of this codebase. *Built for Copilot. Built with Copilot.*
 
 ## License
 
