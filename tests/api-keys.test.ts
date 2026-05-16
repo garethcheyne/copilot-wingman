@@ -8,21 +8,23 @@
  * Run:  cd proxy && npx tsx ../tests/api-keys.test.ts
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Parse .env manually (no dotenv dependency needed)
+// Parse .env manually (no dotenv dependency needed) — skip if not present (CI sets env vars directly)
 const envPath = resolve(__dirname, '../.env');
-for (const line of readFileSync(envPath, 'utf-8').split('\n')) {
-  const t = line.trim();
-  if (!t || t.startsWith('#')) continue;
-  const eq = t.indexOf('=');
-  if (eq === -1) continue;
-  const k = t.slice(0, eq).trim();
-  if (!process.env[k]) process.env[k] = t.slice(eq + 1).trim();
+if (existsSync(envPath)) {
+  for (const line of readFileSync(envPath, 'utf-8').split('\n')) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const eq = t.indexOf('=');
+    if (eq === -1) continue;
+    const k = t.slice(0, eq).trim();
+    if (!process.env[k]) process.env[k] = t.slice(eq + 1).trim();
+  }
 }
 
 // ─── Config ─────────────────────────────────────────────────────────────────────
