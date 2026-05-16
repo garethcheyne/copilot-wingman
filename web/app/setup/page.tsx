@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, XCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { BrandPanel, BrandMarkMobile } from "@/components/auth/brand-panel";
 
 export default function SetupPage() {
   const { setup } = useAuth();
@@ -49,90 +49,40 @@ export default function SetupPage() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-[1.1fr_1fr]">
-      {/* Brand panel */}
-      <aside className="relative overflow-hidden border-r border-border/70 hidden lg:flex flex-col justify-between px-12 py-10">
-        <div aria-hidden className="absolute inset-0 bg-mesh-copilot opacity-90 pointer-events-none" />
-        <div aria-hidden className="absolute inset-0 bg-grain pointer-events-none opacity-50" />
-        <div
-          aria-hidden
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-120 h-120 bg-orb-copilot animate-orb-drift pointer-events-none opacity-70"
-        />
-        <div
-          aria-hidden
-          className="absolute inset-y-0 right-0 w-px bg-linear-to-b from-transparent via-primary/40 to-transparent pointer-events-none"
-        />
-
-        {/* Top — small mark */}
-        <div className="relative flex items-center gap-3">
-          <Image
-            src="/wingman-ai.png"
-            alt="Wingman"
-            width={40}
-            height={40}
-            className="object-contain drop-shadow-[0_4px_18px_hsl(258_90%_66%/0.6)]"
-            priority
-          />
-          <div className="leading-tight">
-            <p className="text-sm font-semibold tracking-tight">Wingman</p>
-            <p className="font-mono text-[10px] text-muted-foreground tracking-[0.15em]">
-              v0.1.0 · LOCAL
-            </p>
-          </div>
-        </div>
-
-        {/* Middle — first-run hero */}
-        <div className="relative space-y-4 max-w-md">
-          <div className="flex items-center gap-2">
-            <span className="pulse-ring text-accent">
-              <span className="bg-accent" />
-            </span>
-            <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-foreground/80">
-              First Run · Configuration
-            </p>
-          </div>
-          <h1 className="text-6xl font-display font-bold tracking-tight leading-[0.95]">
+      <BrandPanel
+        status="First Run · Configuration"
+        statusAccent="accent"
+        headline={
+          <>
             Let&apos;s get
             <br />
             you <span className="text-copilot-gradient">airborne.</span>
-          </h1>
-          <p className="text-base text-muted-foreground max-w-sm">
-            Create the first administrator account. Credentials are hashed locally — they never leave this server.
-          </p>
-        </div>
-
-        {/* Bottom — setup checklist preview */}
-        <div className="relative space-y-2.5 font-mono text-[10px] tracking-[0.18em] uppercase">
-          <p className="text-muted-foreground/70">// Setup Sequence</p>
-          <ol className="space-y-1.5">
-            <li className="flex items-center gap-2 text-foreground/90">
-              <Sparkles className="w-3 h-3 text-copilot-purple" /> 01 · Create admin account
-            </li>
-            <li className="flex items-center gap-2 text-muted-foreground/60">
-              <span className="inline-block w-3 text-center">02</span>· Connect GitHub
-            </li>
-            <li className="flex items-center gap-2 text-muted-foreground/60">
-              <span className="inline-block w-3 text-center">03</span>· Send first chat
-            </li>
-          </ol>
-        </div>
-      </aside>
+          </>
+        }
+        tagline="Create the first administrator account. Credentials are hashed locally — they never leave this server."
+        footer={
+          <div className="space-y-2.5 font-mono text-[10px] tracking-[0.18em] uppercase">
+            <p className="text-muted-foreground/70 text-center">// Setup Sequence</p>
+            <ol className="space-y-1.5 inline-flex flex-col items-start mx-auto">
+              <li className="flex items-center gap-2 text-foreground/90">
+                <Sparkles className="w-3 h-3 text-copilot-purple" /> 01 · Create admin account
+              </li>
+              <li className="flex items-center gap-2 text-muted-foreground/60">
+                <span className="inline-block w-3 text-center">02</span>· Connect GitHub
+              </li>
+              <li className="flex items-center gap-2 text-muted-foreground/60">
+                <span className="inline-block w-3 text-center">03</span>· Send first chat
+              </li>
+            </ol>
+          </div>
+        }
+      />
 
       {/* Form column */}
       <main className="relative flex items-center justify-center px-6 py-12">
-        {/* Mobile-only mini header */}
-        <div className="lg:hidden absolute top-6 left-6 flex items-center gap-2.5">
-          <Image
-            src="/wingman-ai.png"
-            alt="Wingman"
-            width={32}
-            height={32}
-            className="object-contain drop-shadow-[0_2px_10px_hsl(258_90%_66%/0.55)]"
-            priority
-          />
-          <p className="text-sm font-semibold tracking-tight">Wingman</p>
-        </div>
-
         <div className="w-full max-w-sm space-y-7 fade-up">
+          <BrandMarkMobile />
+
           <div className="space-y-2">
             <p className="font-mono text-[10px] tracking-[0.22em] uppercase text-copilot-purple/90 flex items-center gap-2">
               <ShieldCheck className="w-3 h-3" />
