@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Settings, Trash2, MessageSquare, Bug } from "lucide-react";
+import { Plus, Settings, Trash2, MessageSquare, Bug, LogOut } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useSession } from "@/components/session-provider";
 import { useMobileNav } from "@/components/mobile-nav";
+import { useAuth } from "@/components/auth-provider";
 
 function timeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -21,6 +22,7 @@ function timeAgo(date: string): string {
 
 function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
   const { sessions, activeSessionKey, createNewSession, switchSession, deleteSession } = useSession();
+  const { logout } = useAuth();
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
@@ -171,6 +173,17 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
             ↗
           </span>
         </a>
+        <button
+          type="button"
+          onClick={async () => {
+            await logout();
+            window.location.href = "/login";
+          }}
+          className="flex items-center gap-2.5 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors min-h-11 w-full"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Sign Out</span>
+        </button>
       </div>
     </div>
   );

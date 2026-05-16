@@ -166,21 +166,21 @@ export default function SetupConnectPage() {
         />
 
         {/* Top */}
-        <div className="relative flex items-center gap-3">
-          <div className="ring-copilot-gradient rounded-xl">
-            <div className="w-9 h-9 rounded-xl bg-card flex items-center justify-center overflow-hidden">
+        <div className="relative flex flex-col items-center gap-4 pt-8">
+          <div className="ring-copilot-gradient rounded-2xl">
+            <div className="w-20 h-20 rounded-2xl bg-card flex items-center justify-center overflow-hidden">
               <Image
                 src="/wingman-ai.png"
                 alt="Wingman"
-                width={36}
-                height={36}
-                className="object-contain"
+                width={72}
+                height={72}
+                className="object-contain drop-shadow-[0_4px_20px_hsl(258_90%_66%/0.5)]"
                 priority
               />
             </div>
           </div>
-          <div className="leading-tight">
-            <p className="text-sm font-semibold tracking-tight">Wingman</p>
+          <div className="text-center leading-tight">
+            <p className="text-base font-semibold tracking-tight">Wingman</p>
             <p className="font-mono text-[10px] text-muted-foreground tracking-[0.15em]">
               v0.1.0 · LOCAL
             </p>
