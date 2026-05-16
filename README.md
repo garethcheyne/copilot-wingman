@@ -92,6 +92,30 @@ Open [http://localhost:3000](http://localhost:3000) and follow the guided setup:
 2. **Connect GitHub** — authenticate via GitHub Device OAuth flow
 3. **Start chatting** — you're ready to go
 
+## Upgrading
+
+To upgrade an existing deployment, run the bundled script from the repo root:
+
+```bash
+./upgradeWingman.sh
+```
+
+It performs a safe, data-preserving upgrade:
+
+1. **Force-syncs** the working tree to `origin/<current-branch>` (`git fetch` + `reset --hard` + `clean -fd`). Your `.env` and `.env.local` are explicitly preserved — production servers should never carry local edits.
+2. **Backs up Postgres** to `./backups/wingman-YYYYmmdd-HHMMSS.sql.gz` via `pg_dump` running inside the live container. The upgrade aborts if the backup fails.
+3. **Rebuilds only the app containers** (`web` + `proxy`). The `postgres` and `redis` containers — and their named volumes — are never recreated, never removed, never `down -v`'d.
+4. **Applies `schema.sql` additively** through `proxy/scripts/apply-migration.mjs`. All statements use `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`, so they're safe to re-run on every upgrade.
+5. **Health-checks** `/api/health` and prints the running version.
+
+Flags:
+
+| Flag | Purpose |
+|---|---|
+| `--no-pull` | Skip the git sync (use code that's already checked out) |
+| `--no-backup` | Skip the database dump (not recommended) |
+| `--skip-build` | Restart containers without rebuilding images |
+
 ## Reverse Proxy Setup
 
 If you're running Wingman behind a reverse proxy (nginx, Caddy, etc.), update `NEXT_PUBLIC_PROXY_URL` in `.env` to the public URL your browser will use to reach the proxy API:
