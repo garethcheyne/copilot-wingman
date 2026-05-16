@@ -259,6 +259,34 @@ We're also indebted to **[GitHub Copilot](https://github.com/features/copilot)**
 — not just as the model backend Wingman proxies, but as the pair-programmer
 that wrote most of this codebase. *Built for Copilot. Built with Copilot.*
 
+## Contributors
+
+<table>
+  <tr>
+    <td align="center" valign="top" width="220">
+      <a href="https://github.com/garethcheyne">
+        <img src="https://github.com/garethcheyne.png" width="88" height="88" alt="@garethcheyne" />
+        <br />
+        <strong>Gareth Cheyne</strong>
+      </a>
+      <br />
+      <sub>Creator &middot; Maintainer</sub>
+    </td>
+    <td align="center" valign="top" width="220">
+      <a href="https://github.com/features/copilot">
+        <img src="https://raw.githubusercontent.com/github/explore/main/topics/github-copilot/github-copilot.png" width="88" height="88" alt="GitHub Copilot" />
+        <br />
+        <strong>GitHub Copilot</strong>
+      </a>
+      <br />
+      <sub>Pair programmer &middot; Co-author of nearly every commit</sub>
+    </td>
+  </tr>
+</table>
+
+> Copilot's commits are attributed via the `Co-authored-by: GitHub Copilot`
+> trailer on every commit it helped write.
+
 ## License
 
 MIT
