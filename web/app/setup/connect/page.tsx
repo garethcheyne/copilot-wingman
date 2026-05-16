@@ -14,8 +14,7 @@ import {
   Sparkles,
   ArrowRight,
 } from "lucide-react";
-
-const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL || "http://localhost:3200";
+import { adminFetch } from "@/lib/admin-api";
 
 export default function SetupConnectPage() {
   const router = useRouter();
@@ -40,7 +39,7 @@ export default function SetupConnectPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${PROXY_URL}/api/admin/connection`);
+        const res = await adminFetch("/api/admin/connection");
         if (res.ok) {
           const data = await res.json();
           if (data.connected) {
@@ -65,7 +64,7 @@ export default function SetupConnectPage() {
     setDevice(null);
 
     try {
-      const res = await fetch(`${PROXY_URL}/api/admin/connection/oauth/start`, {
+      const res = await adminFetch("/api/admin/connection/oauth/start", {
         method: "POST",
       });
       const data = await res.json();
@@ -106,9 +105,8 @@ export default function SetupConnectPage() {
       startCountdown(waitSec);
       pollRef.current = setTimeout(async () => {
         try {
-          const res = await fetch(`${PROXY_URL}/api/admin/connection/oauth/poll`, {
+          const res = await adminFetch("/api/admin/connection/oauth/poll", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ deviceCode }),
           });
           const data = await res.json();
