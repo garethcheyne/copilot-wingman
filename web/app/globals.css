@@ -500,19 +500,22 @@
     0 0 30px -5px hsl(200 100% 55% / 0.3);
 }
 
-/* On touch devices the screen has rounded hardware corners. Bump the
-   border-radius so the glowing frame visually hugs the curve instead of
-   looking like a sharp rectangle inside it. env(safe-area-inset-top) is
-   non-zero on notched/Dynamic-Island iPhones and gives a free proxy for
-   the corner radius (≈47px on iPhone 14/15/16 Pro). */
+/* On touch devices the screen has rounded hardware corners. We want the
+   glowing frame to hug the curve, not over-curve inward. iPhone hardware
+   corner radius is ~47–55px depending on model (Pro/Max bigger). The
+   previous formula used env(safe-area-inset-top) as a proxy, but on
+   Dynamic-Island iPhones that value is ~59px — too big — which left
+   visible gaps at the bottom corners where the device curves in tighter
+   than the ribbon does. Using 47px hugs non-Pro and Pro models cleanly;
+   Pro Max may show a hair-thin gap that the eye doesn't register. */
 @media (pointer: coarse) and (max-width: 540px) {
   .electric-border {
-    border-radius: max(env(safe-area-inset-top), 38px);
+    border-radius: 47px;
   }
 }
 @media (display-mode: standalone) and (max-width: 540px) {
   .electric-border {
-    border-radius: max(env(safe-area-inset-top), 44px);
+    border-radius: 47px;
   }
 }
 

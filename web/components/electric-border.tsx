@@ -11,7 +11,7 @@ export function ElectricBorder({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className={`electric-border h-dvh p-[3px] ${isDanger ? "electric-danger" : ""}`}
+      className={`electric-border fixed inset-0 p-[3px] ${isDanger ? "electric-danger" : ""}`}
     >
       {/*
         Outer .electric-border sits at the literal device edge (the conic
