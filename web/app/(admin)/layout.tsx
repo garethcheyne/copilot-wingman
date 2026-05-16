@@ -212,8 +212,9 @@ function AdminNavBody() {
         </div>
       </div>
 
-      {/* Grouped nav */}
-      <nav className="flex-1 px-2 pb-2 scroll-sleek overflow-y-auto">
+      {/* Grouped nav — min-h-0 lets the flex-1 scroll region shrink below
+          its content; otherwise long nav lists push the footer off-screen. */}
+      <nav className="flex-1 min-h-0 px-2 pb-2 scroll-sleek overflow-y-auto">
         {navGroups.map((group, gi) => (
           <div key={group.label} className={gi === 0 ? "" : "mt-4"}>
             <div className="px-3 pb-1.5 pt-1 flex items-center gap-2">

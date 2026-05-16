@@ -78,8 +78,10 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
         <p className="label-mono">// Sessions</p>
       </div>
 
-      {/* Session list */}
-      <ScrollArea className="flex-1 px-2 py-2 scroll-sleek">
+      {/* Session list — min-h-0 lets the flex-1 ScrollArea shrink below its
+          content height. Without it, a long session list expands the area to
+          fit every row and shoves the footer off the bottom of the drawer. */}
+      <ScrollArea className="flex-1 min-h-0 px-2 py-2 scroll-sleek">
         {sessions.length === 0 ? (
           <div className="px-4 py-10 flex flex-col items-center gap-3 text-center">
             <div className="w-8 h-8 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground/60">
