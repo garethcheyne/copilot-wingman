@@ -197,9 +197,10 @@ for i in {1..30}; do
   sleep 1
 done
 
-# Run inside the proxy container so it picks up the bundled migration script
-# and DATABASE_URL from compose env.
-if $DC exec -T proxy node scripts/apply-migration.mjs; then
+# Run inside the proxy container so it picks up the bundled migration runner
+# and DATABASE_URL from compose env. Migrations live in
+# proxy/src/db/migrations/ and are tracked in the schema_migrations table.
+if $DC exec -T proxy node scripts/migrate.mjs; then
   ok "schema applied"
 else
   fail "schema migration failed — investigate, then re-run."

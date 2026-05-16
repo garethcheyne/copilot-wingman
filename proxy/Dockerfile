@@ -20,6 +20,13 @@ RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
+# Migration runner + migration files. These ship with the runtime image so
+# `docker compose exec proxy node scripts/migrate.mjs` (called by
+# upgradeWingman.sh) finds everything it needs.
+COPY scripts/ ./scripts/
+COPY src/db/migrations/ ./src/db/migrations/
+COPY src/db/schema.sql ./src/db/schema.sql
+
 ARG APP_VERSION=0.0.0
 RUN echo "$APP_VERSION" > ./VERSION
 

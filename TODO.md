@@ -9,7 +9,7 @@
 - [x] **Secure admin routes** — All `/api/admin/*` endpoints protected by `sessionAuthMiddleware`
 - [x] **Add test suite** — 76 API integration tests across 9 phases; unit test expansion still needed
 - [x] **CI/CD pipeline** — GitHub Actions for lint/build/test on PR + Docker image publish on merge + release workflow
-- [ ] **Database migrations** — Replace single `schema.sql` init with versioned migrations (e.g. node-pg-migrate)
+- [x] **Database migrations** — Versioned SQL migrations under `proxy/src/db/migrations/`, tracked in `schema_migrations` table, applied by `proxy/scripts/migrate.mjs` (dependency-free runner, transactional per-file, checksum-warned). Wired into `upgradeWingman.sh` and exposed as `npm run migrate` / `npm run migrate:dry-run`.
 - [x] **Fix dual-repo in VS Code** — Resolved with `git.autoRepositoryDetection: openEditors` workspace setting
 
 ## 🟠 High
@@ -73,3 +73,4 @@
 - [x] OpenAPI 3.1 spec route at `/openapi.json` (API-key endpoints only)
 - [x] Swagger UI viewer at `web/public/swagger.html` with full Wingman dark theme
 - [x] Reverse-proxy setup guide — nginx + Caddy + Traefik configs, env vars, smoke tests
+- [x] Safe-upgrade script — `upgradeWingman.sh` force-syncs from origin (preserving `.env`), dumps Postgres to `./backups/`, rebuilds only `web` + `proxy` (never touches `postgres` / `redis` volumes), runs versioned migrations, health-checks `/api/health`

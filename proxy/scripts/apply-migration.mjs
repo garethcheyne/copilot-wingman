@@ -1,27 +1,19 @@
-import 'dotenv/config';
-import { readFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+// Compatibility shim — the old single-file schema applier has been replaced
+// by a versioned migration runner. This file just delegates so any existing
+// tooling (older upgradeWingman.sh, docs, CI jobs) keeps working.
+//
+// New code should call `node scripts/migrate.mjs` directly, or
+// `npm run migrate` from inside the proxy container.
+
+import { spawn } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import pg from 'pg';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const schemaPath = resolve(__dirname, '..', 'src', 'db', 'schema.sql');
-const sql = readFileSync(schemaPath, 'utf8');
+const runner = resolve(__dirname, 'migrate.mjs');
 
-const url = process.env.DATABASE_URL;
-if (!url) {
-  console.error('DATABASE_URL not set');
-  process.exit(1);
-}
+const child = spawn(process.execPath, [runner, ...process.argv.slice(2)], {
+  stdio: 'inherit',
+});
+child.on('exit', (code) => process.exit(code ?? 0));
 
-const client = new pg.Client({ connectionString: url });
-await client.connect();
-try {
-  await client.query(sql);
-  console.log('schema.sql applied successfully');
-} catch (err) {
-  console.error('Migration failed:', err.message);
-  process.exitCode = 1;
-} finally {
-  await client.end();
-}
