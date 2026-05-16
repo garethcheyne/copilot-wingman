@@ -15,6 +15,7 @@ import {
   Trash2,
   Activity,
   ExternalLink,
+  KeyRound,
 } from "lucide-react";
 import { adminFetch } from "@/lib/admin-api";
 import { PushNotifications } from "@/components/push-notifications";
@@ -54,6 +55,14 @@ export default function SettingsPage() {
   // General status
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+
+  // Password change
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [changingPw, setChangingPw] = useState(false);
+  const [pwStatus, setPwStatus] = useState<"idle" | "success" | "error">("idle");
+  const [pwMessage, setPwMessage] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -154,6 +163,51 @@ export default function SettingsPage() {
     }
   };
 
+  const changePassword = async () => {
+    setPwStatus("idle");
+    setPwMessage("");
+
+    if (!currentPw || !newPw) {
+      setPwStatus("error");
+      setPwMessage("All fields are required.");
+      return;
+    }
+    if (newPw.length < 8) {
+      setPwStatus("error");
+      setPwMessage("New password must be at least 8 characters.");
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setPwStatus("error");
+      setPwMessage("New passwords do not match.");
+      return;
+    }
+
+    setChangingPw(true);
+    try {
+      const res = await adminFetch("/api/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
+      });
+      if (res.ok) {
+        setPwStatus("success");
+        setPwMessage("Password updated successfully.");
+        setCurrentPw("");
+        setNewPw("");
+        setConfirmPw("");
+      } else {
+        const err = await res.json();
+        setPwStatus("error");
+        setPwMessage(err.error || "Failed to change password.");
+      }
+    } catch {
+      setPwStatus("error");
+      setPwMessage("Cannot reach proxy.");
+    } finally {
+      setChangingPw(false);
+    }
+  };
+
   return (
     <div className="space-y-10">
       {/* Header */}
@@ -228,6 +282,85 @@ export default function SettingsPage() {
                   );
                 })
             )}
+          </div>
+        </div>
+      </section>
+
+      {/* Change Password */}
+      <section className="space-y-3">
+        <p className="label-mono">// Account</p>
+        <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/60 backdrop-blur-md">
+          <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-amber-500/40 to-transparent" />
+          <div className="px-6 py-6 space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-card border border-border/70 flex items-center justify-center">
+                <KeyRound className="w-4 h-4 text-amber-500" strokeWidth={2.2} />
+              </div>
+              <div>
+                <h2 className="text-xl font-display font-bold leading-tight">Change Password</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">Update your admin account password.</p>
+              </div>
+            </div>
+
+            <div className="rail-divider" />
+
+            {pwStatus !== "idle" && (
+              <div
+                className={`flex items-center gap-2 px-4 py-3 rounded-lg border ${
+                  pwStatus === "success"
+                    ? "border-copilot-green/30 bg-copilot-green/6 text-copilot-green"
+                    : "border-destructive/30 bg-destructive/6 text-destructive"
+                }`}
+              >
+                {pwStatus === "success" ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                ) : (
+                  <XCircle className="w-4 h-4 shrink-0" />
+                )}
+                <span className="text-sm">{pwMessage}</span>
+              </div>
+            )}
+
+            <div className="space-y-3 max-w-sm">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Current Password</label>
+                <Input
+                  type="password"
+                  value={currentPw}
+                  onChange={(e) => setCurrentPw(e.target.value)}
+                  placeholder="••••••••"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">New Password</label>
+                <Input
+                  type="password"
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                  placeholder="Min 8 characters"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Confirm New Password</label>
+                <Input
+                  type="password"
+                  value={confirmPw}
+                  onChange={(e) => setConfirmPw(e.target.value)}
+                  placeholder="••••••••"
+                  className="font-mono text-sm"
+                />
+              </div>
+              <Button
+                onClick={changePassword}
+                disabled={changingPw || !currentPw || !newPw || !confirmPw}
+                className="bg-copilot-gradient hover:opacity-90 text-white border-0 mt-2"
+              >
+                {changingPw && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Update Password
+              </Button>
+            </div>
           </div>
         </div>
       </section>

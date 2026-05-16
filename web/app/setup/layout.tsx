@@ -16,7 +16,9 @@ export default function SetupLayout({ children }: { children: React.ReactNode })
     if (pathname === "/setup") {
       // Step 1: only accessible when no users exist
       if (!needsSetup) {
-        router.replace(user ? "/chat" : "/login");
+        // Redirect to /setup/connect (step 2) — it will forward to /chat
+        // if GitHub is already connected
+        router.replace(user ? "/setup/connect" : "/login");
       }
     }
     // /setup/connect is allowed if user is authenticated (just created account)

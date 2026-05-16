@@ -139,6 +139,57 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
 });
 
 /**
+ * POST /api/auth/change-password
+ * Change the current user's password. Requires valid session + current password.
+ */
+authRouter.post('/change-password', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const token = req.headers['x-session-token'] as string | undefined;
+    if (!token) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const session = await pool.query(
+      `SELECT u.id, u.password_hash FROM user_sessions s JOIN users u ON s.user_id = u.id
+       WHERE s.token = $1 AND s.expires_at > NOW()`,
+      [token]
+    );
+    if (session.rows.length === 0) {
+      res.status(401).json({ error: 'Invalid or expired session' });
+      return;
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: 'Current password and new password are required' });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      res.status(400).json({ error: 'New password must be at least 8 characters' });
+      return;
+    }
+
+    const user = session.rows[0];
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) {
+      res.status(403).json({ error: 'Current password is incorrect' });
+      return;
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth] change-password error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+/**
  * POST /api/auth/logout
  * Invalidate the current session token.
  */
