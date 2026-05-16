@@ -24,10 +24,13 @@ import { sessionAuthMiddleware } from './middleware/session-auth.js';
 const app = express();
 const PORT = parseInt(process.env.PROXY_PORT ?? '3200', 10);
 
-// CORS — allow any localhost origin (dev on various ports)
+// CORS — allow localhost (dev) and configured public origin (prod)
+const ALLOWED_ORIGIN = process.env.CORS_ORIGIN; // e.g. https://wingman.err403.com
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      callback(null, true);
+    } else if (ALLOWED_ORIGIN && origin === ALLOWED_ORIGIN) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
