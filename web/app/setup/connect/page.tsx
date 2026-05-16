@@ -181,7 +181,7 @@ export default function SetupConnectPage() {
       />
 
       {/* Form column */}
-      <main className="relative flex items-center justify-center px-6 py-12">
+      <main className="relative flex items-center justify-center px-6 py-12 pt-safe pb-safe">
         <div className="w-full max-w-sm space-y-7 fade-up">
           <BrandMarkMobile />
 
