@@ -42,8 +42,10 @@ app.use(cors({
 // Body parsing (20mb for base64 image uploads)
 app.use(express.json({ limit: '20mb' }));
 
-// Health — no auth required
+// Health — no auth required. Mounted under both paths so external
+// reverse proxies that only forward /api/* can still probe it.
 app.use('/health', healthRouter);
+app.use('/api/health', healthRouter);
 
 // OpenAPI spec — public, documents only API-key-facing endpoints
 app.use('/openapi.json', openApiRouter);
