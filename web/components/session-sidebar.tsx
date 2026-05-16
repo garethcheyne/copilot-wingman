@@ -8,6 +8,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useSession } from "@/components/session-provider";
 import { useMobileNav } from "@/components/mobile-nav";
 import { useAuth } from "@/components/auth-provider";
+import { APP_TAGLINE, APP_VERSION } from "@/lib/version";
 
 function timeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -42,8 +43,12 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
           />
           <div className="leading-tight">
             <p className="text-sm font-semibold tracking-tight">Wingman</p>
-            <p className="font-mono text-[10px] text-muted-foreground tracking-[0.15em]">
-              v0.1.0 · LOCAL
+            <p
+              className="font-mono text-[10px] text-muted-foreground tracking-[0.15em] uppercase"
+              translate="no"
+              suppressHydrationWarning
+            >
+              {APP_TAGLINE} · <span translate="no" suppressHydrationWarning>v{APP_VERSION}</span>
             </p>
           </div>
         </div>

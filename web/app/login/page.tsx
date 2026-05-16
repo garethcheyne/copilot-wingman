@@ -40,7 +40,7 @@ export default function LoginPage() {
           <>
             Your <span className="text-copilot-gradient">Copilot</span>,
             <br />
-            self-hosted.
+            your <span className="text-copilot-gradient">Wingman</span>.
           </>
         }
         tagline="Authorize once, then chat from anywhere — your sessions, your tokens, your terminal."
@@ -48,18 +48,18 @@ export default function LoginPage() {
           <div className="flex items-center gap-4 font-mono text-[10px] tracking-[0.22em] uppercase text-muted-foreground/80 justify-center">
             <span className="flex items-center gap-2">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-copilot-green" />
-              127.0.0.1
+              Powered by GitHub Copilot
             </span>
             <span className="inline-block w-px h-3 bg-border/80" />
-            <span>AES-256 · Encrypted</span>
+            <span>Tokens · AES-256-GCM</span>
             <span className="inline-block w-px h-3 bg-border/80" />
-            <span>No telemetry</span>
+            <span>No phone-home</span>
           </div>
         }
       />
 
       {/* Form column */}
-      <main className="relative flex items-center justify-center px-6 py-12">
+      <main className="relative flex items-start lg:items-center justify-center px-6 pt-8 pb-12 lg:py-12">
         <div className="w-full max-w-sm space-y-7 fade-up">
           <BrandMarkMobile />
 
@@ -151,13 +151,7 @@ export default function LoginPage() {
               )}
               Sign in
             </Button>
-          </form>
-
-          <div className="flex items-center gap-3 font-mono text-[9px] tracking-[0.18em] uppercase text-muted-foreground/60">
-            <span className="flex-1 h-px bg-border/60" />
-            <span>Local only · No external auth</span>
-            <span className="flex-1 h-px bg-border/60" />
-          </div>
+          </form>    
         </div>
       </main>
     </div>

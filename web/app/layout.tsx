@@ -24,7 +24,7 @@ const bricolage = Bricolage_Grotesque({
 
 export const metadata: Metadata = {
   title: "Wingman",
-  description: "Self-hosted Copilot proxy with chat UI",
+  description: "Chat UI and API proxy for your GitHub Copilot subscription",
   applicationName: "Wingman",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -66,7 +66,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${jetbrainsMono.variable} ${bricolage.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col relative">
+      <body className="min-h-full flex flex-col relative" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           {/* Atmosphere — fixed, behind everything, non-interactive */}
           <div

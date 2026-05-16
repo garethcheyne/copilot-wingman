@@ -299,6 +299,38 @@
 .animate-orb-drift {
   animation: orb-drift 14s ease-in-out infinite;
 }
+.animate-orb-drift-reverse {
+  animation: orb-drift 18s ease-in-out infinite reverse;
+}
+
+/* Dark radial bed behind hero text — pushes the headline off the logo
+ * imagery without a hard rectangle. Sits purely in the background so
+ * gradient-clipped (transparent) text isn't darkened. */
+.bg-radial-text-glow {
+  background-image: radial-gradient(
+    ellipse 65% 55% at 50% 50%,
+    hsl(225 50% 3% / 0.92),
+    hsl(225 50% 3% / 0.75) 30%,
+    hsl(225 50% 3% / 0.45) 55%,
+    hsl(225 50% 3% / 0.18) 75%,
+    transparent 90%
+  );
+  filter: blur(14px);
+}
+
+/* Layered text shadow — tight near-black halo + wide soft bloom — so the
+ * headline reads cleanly over any background imagery. */
+.text-shadow-hero {
+  text-shadow:
+    0 0 14px hsl(225 50% 4% / 0.85),
+    0 0 32px hsl(225 50% 4% / 0.7),
+    0 2px 4px hsl(225 50% 4% / 0.9);
+}
+.text-shadow-hero-soft {
+  text-shadow:
+    0 0 10px hsl(225 50% 4% / 0.8),
+    0 1px 3px hsl(225 50% 4% / 0.9);
+}
 
 /* Page-load reveal — apply to children with stagger */
 @keyframes fade-up {

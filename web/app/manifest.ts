@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Wingman — Copilot Chat",
     short_name: "Wingman",
     description:
-      "Self-hosted AI proxy and chat UI powered by your GitHub Copilot subscription.",
+      "Your GitHub Copilot’s Wingman — chat UI and API proxy for your Copilot subscription.",
     start_url: "/",
     scope: "/",
     display: "standalone",

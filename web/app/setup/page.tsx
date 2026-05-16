@@ -79,7 +79,7 @@ export default function SetupPage() {
       />
 
       {/* Form column */}
-      <main className="relative flex items-center justify-center px-6 py-12">
+      <main className="relative flex items-start lg:items-center justify-center px-6 pt-8 pb-12 lg:py-12">
         <div className="w-full max-w-sm space-y-7 fade-up">
           <BrandMarkMobile />
 

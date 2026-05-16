@@ -359,7 +359,7 @@ export default function ChatPage() {
                   Ask <span className="text-copilot-gradient font-display font-bold">Wingman</span>
                 </h2>
                 <p className="text-muted-foreground text-xs sm:text-sm max-w-md mx-auto px-2">
-                  Self-hosted proxy &middot; streaming responses &middot; full model catalog
+                  Copilot proxy &middot; streaming responses &middot; full model catalog
                 </p>
               </div>
 
@@ -547,7 +547,7 @@ export default function ChatPage() {
               Enter to send &middot; Paste or drop images
             </p>
             <p className="font-mono text-[9px] tracking-wider text-muted-foreground/60 uppercase">
-              Self-hosted proxy
+              Copilot proxy
             </p>
           </div>
         </div>
