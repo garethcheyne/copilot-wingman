@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/components/session-provider";
 import { ChatMarkdown } from "@/components/chat-markdown";
+import ChatErrorCard from "@/components/chat/ChatErrorCard";
+import Toast from "@/components/ui/toast";
 import { MobileNavTrigger } from "@/components/mobile-nav";
 import { adminFetch } from "@/lib/admin-api";
 import { notifyWhenHidden } from "@/lib/notifications";
@@ -37,6 +39,7 @@ const SUGGESTIONS: Array<{ icon: typeof Code2; label: string; prompt: string; kb
 ];
 
 export default function ChatPage() {
+    const [toast, setToast] = useState<string | null>(null);
   const { activeSessionKey, sessions, refreshSessions, loadSessionMessages } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -184,14 +187,30 @@ export default function ChatPage() {
 
       if (!res.ok) {
         const errText = await res.text();
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = {
-            role: "assistant",
-            content: `Error (${res.status}): ${errText}`,
-          };
-          return updated;
-        });
+        if (res.status === 429) {
+          // Detect premium model quota error (simple heuristic: look for 'premium' or 'model' in error text)
+          const isPremiumModel = /premium|model|allowance|gpt-4|opus|claude|gemini/i.test(errText) && selectedModel !== "gpt-3.5-turbo" && selectedModel !== "gpt-3.5";
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: isPremiumModel ? "__PREMIUM_QUOTA_ERROR__" : "__QUOTA_ERROR__",
+              images: undefined,
+            };
+            return updated;
+          });
+        } else {
+          setToast(`Error (${res.status}): ${errText}`);
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: "",
+              images: undefined,
+            };
+            return updated;
+          });
+        }
         setIsLoading(false);
         return;
       }
@@ -242,11 +261,13 @@ export default function ChatPage() {
         });
       }
     } catch (err) {
+      setToast(`Error: ${(err as Error).message}`);
       setMessages((prev) => {
         const updated = [...prev];
         updated[updated.length - 1] = {
           role: "assistant",
-          content: `Error: ${(err as Error).message}`,
+          content: "",
+          images: undefined,
         };
         return updated;
       });
@@ -450,6 +471,34 @@ export default function ChatPage() {
           <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-8">
             {messages.map((msg, i) => {
               const isUser = msg.role === "user";
+              if (!isUser && (msg.content === "__QUOTA_ERROR__" || msg.content === "__PREMIUM_QUOTA_ERROR__")) {
+                const isPremiumModel = msg.content === "__PREMIUM_QUOTA_ERROR__";
+                return (
+                  <div key={i} className="flex gap-4 fade-up">
+                    <div className="shrink-0">
+                      <div className="ring-copilot-gradient rounded-full">
+                        <div className="w-8 h-8 rounded-full bg-card flex items-center justify-center">
+                          <Sparkles className="w-3.5 h-3.5 text-copilot-purple" strokeWidth={2} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <ChatErrorCard
+                        isPremiumModel={isPremiumModel}
+                        onSwitchModel={isPremiumModel ? () => {
+                          setSelectedModel("gpt-3.5-turbo");
+                          setMessages((prev) => {
+                            // Remove the error card and retry last user message
+                            const lastUserMsg = prev.slice().reverse().find(m => m.role === "user");
+                            return lastUserMsg ? [lastUserMsg] : [];
+                          });
+                          setTimeout(() => sendMessage(), 100);
+                        } : undefined}
+                      />
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div key={i} className="flex gap-4 fade-up">
                   <div className="shrink-0">
@@ -511,6 +560,7 @@ export default function ChatPage() {
                 </div>
               );
             })}
+              {toast && <Toast message={toast} onClose={() => setToast(null)} />}
             <div ref={messagesEndRef} />
           </div>
         )}
