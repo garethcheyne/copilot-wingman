@@ -512,6 +512,149 @@ adminRouter.post('/settings/llm-stats/test', async (_req: Request, res: Response
 });
 
 /**
+ * POST /api/admin/recommend-models
+ * Body: { projectDescription: string, preference?: 'cheap'|'balanced'|'powerful', requiresTools?: boolean }
+ *
+ * Calls a Copilot model with the current catalog as context and asks it to
+ * recommend a scope for a new API key. Returns:
+ *   { recommended: string[], defaultModel: string|null, reasoning: string, routerModel: string }
+ *
+ * Used by the API Keys "Help me choose" assistant.
+ */
+adminRouter.post('/recommend-models', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body as {
+      projectDescription?: unknown;
+      preference?: unknown;
+      requiresTools?: unknown;
+    };
+    const description = typeof body.projectDescription === 'string' ? body.projectDescription.trim() : '';
+    if (!description) {
+      res.status(400).json({ error: 'projectDescription is required' });
+      return;
+    }
+    const preference =
+      body.preference === 'cheap' || body.preference === 'powerful'
+        ? body.preference
+        : 'balanced';
+    const requiresTools = body.requiresTools === true;
+
+    // Build the catalog the router model will reason over.
+    const models = await getActiveModels();
+    const catalog = models
+      .filter((m) => m.chat_enabled)
+      .map((m) => {
+        const supports = m.capabilities?.supports ?? {};
+        return {
+          id: m.id,
+          name: m.name,
+          category: m.category,
+          vendor: m.organization ?? m.vendor,
+          best_for: m.best_for,
+          description: m.description,
+          premium_multiplier: m.premium_multiplier,
+          retirement_date: m.retirement_date,
+          tool_calls: supports.tool_calls === true,
+          parallel_tool_calls: supports.parallel_tool_calls === true,
+          vision: supports.vision === true,
+          thinking: supports.thinking === true,
+          structured_outputs: supports.structured_outputs === true,
+          context_window: m.capabilities?.context_window ?? m.context_window ?? null,
+        };
+      });
+
+    if (catalog.length === 0) {
+      res.status(503).json({ error: 'No active chat-enabled models available. Run a model sync first.' });
+      return;
+    }
+
+    // Pick a router model: prefer the configured default, then a sensible fallback.
+    const defaultRow = await pool.query(
+      `SELECT value FROM app_settings WHERE key = 'default_model'`,
+    );
+    const configuredDefault = (defaultRow.rows[0]?.value as string | undefined) ?? null;
+    const routerCandidates = [
+      configuredDefault,
+      'gpt-5-mini',
+      'gpt-5.4-mini',
+      'gpt-4o',
+      'gpt-4.1',
+    ].filter((v): v is string => typeof v === 'string' && v.length > 0);
+    const routerModel =
+      routerCandidates.find((id) => catalog.some((c) => c.id === id)) ?? catalog[0].id;
+
+    const systemPrompt = [
+      'You are a Copilot model-selection assistant.',
+      'Given a project description and a catalog of models that the Wingman proxy can access via GitHub Copilot, recommend which models the user should scope their API key to.',
+      'IMPORTANT: The capability flags in the catalog (tool_calls, parallel_tool_calls, vision, thinking, structured_outputs) reflect what GitHub Copilot itself exposes for that model on its /chat/completions endpoint — not what the underlying model might support natively elsewhere. Always honour Copilot\'s view.',
+      'Cost guidance: premium_multiplier 0 = included in subscription, 0.33 = light premium, 1 = standard premium, >=3 = heavy premium. Prefer cheaper models unless the project clearly needs more.',
+      'Output rules:',
+      '- Reply with a single fenced JSON block (```json ... ```) and nothing outside the block.',
+      '- Schema: { "recommended": string[], "default": string|null, "reasoning": string }.',
+      '- "recommended" must be 1-5 model ids drawn from the catalog. Pick a focused set, not the whole list.',
+      '- "default" must be one of the recommended ids, or null. Choose the cheapest one that meets the requirements.',
+      '- "reasoning" is 2-4 short sentences explaining the picks for this specific project.',
+    ].join('\n');
+
+    const userPrompt = [
+      `Project description:\n${description}`,
+      '',
+      `User preference: ${preference}`,
+      `Requires tool calling: ${requiresTools ? 'yes' : 'auto-detect from the description'}`,
+      '',
+      `Catalog (${catalog.length} models):`,
+      JSON.stringify(catalog, null, 2),
+    ].join('\n');
+
+    const completion = await chatCompletion({
+      model: routerModel,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      stream: false,
+    });
+
+    // Extract the JSON block. Be forgiving — fenced or bare.
+    const fenceMatch = completion.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const jsonText = (fenceMatch?.[1] ?? completion).trim();
+    let parsed: { recommended?: unknown; default?: unknown; reasoning?: unknown } = {};
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      // try to find the first {...} object in the response
+      const objMatch = completion.match(/\{[\s\S]*\}/);
+      if (objMatch) {
+        try { parsed = JSON.parse(objMatch[0]); } catch { /* swallow */ }
+      }
+    }
+
+    const catalogIds = new Set(catalog.map((c) => c.id));
+    const recommended = Array.isArray(parsed.recommended)
+      ? parsed.recommended.filter((v): v is string => typeof v === 'string' && catalogIds.has(v))
+      : [];
+    const defaultModel =
+      typeof parsed.default === 'string' && recommended.includes(parsed.default)
+        ? parsed.default
+        : recommended[0] ?? null;
+    const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning : '';
+
+    if (recommended.length === 0) {
+      res.status(502).json({
+        error: 'Router model did not return a usable recommendation',
+        routerModel,
+        raw: completion,
+      });
+      return;
+    }
+
+    res.json({ recommended, defaultModel, reasoning, routerModel });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
  * GET /api/admin/sessions?source=ui|api_key|all&api_key_id=<uuid>
  * Returns sessions with rolled-up message counts and totals, plus the
  * API key (name + prefix) that drove the most recent request for each.
@@ -536,7 +679,133 @@ adminRouter.get('/sessions', async (req: Request, res: Response): Promise<void> 
  */
 adminRouter.get('/sessions/:id', async (req: Request, res: Response): Promise<void> => {
   try {
-    const session = await getSessionById(String(req.params.id));
+    const id = String(req.params.id);
+
+    // Synthetic id format: `apikey:<keyId>:conv:<convId>`
+    // These represent stateless API-key conversations grouped from request_log
+    // (no chat_sessions row exists). We synthesise a session + a list of
+    // per-turn pseudo-messages so the admin UI can render a history view.
+    if (id.startsWith('apikey:')) {
+      const m = id.match(/^apikey:([^:]+):conv:(.+)$/);
+      if (!m) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+      const apiKeyId = m[1];
+      const convId = m[2];
+
+      const keyMeta = await pool.query<{
+        name: string;
+        keyPrefix: string;
+        createdAt: string;
+      }>(
+        `SELECT name, key_prefix AS "keyPrefix", created_at AS "createdAt"
+         FROM api_keys WHERE id = $1`,
+        [apiKeyId]
+      );
+      if (keyMeta.rowCount === 0) {
+        res.status(404).json({ error: 'API key not found' });
+        return;
+      }
+
+      const rowsRes = await pool.query<{
+        id: string;
+        model: string | null;
+        promptTokens: number | null;
+        completionTokens: number | null;
+        latencyMs: number | null;
+        status: 'success' | 'error';
+        errorMessage: string | null;
+        endUser: string | null;
+        toolCallsCount: number;
+        toolsUsed: Array<{ name: string; count: number }> | null;
+        hadTools: boolean;
+        createdAt: string;
+      }>(
+        `SELECT id,
+                model,
+                prompt_tokens AS "promptTokens",
+                completion_tokens AS "completionTokens",
+                latency_ms AS "latencyMs",
+                status,
+                error_message AS "errorMessage",
+                end_user AS "endUser",
+                tool_calls_count AS "toolCallsCount",
+                tools_used AS "toolsUsed",
+                had_tools AS "hadTools",
+                created_at AS "createdAt"
+         FROM request_log
+         WHERE api_key_id = $1 AND conversation_id = $2
+         ORDER BY created_at ASC`,
+        [apiKeyId, convId]
+      );
+
+      if (rowsRes.rowCount === 0) {
+        res.status(404).json({ error: 'Conversation not found' });
+        return;
+      }
+
+      const rows = rowsRes.rows;
+      const first = rows[0];
+      const last = rows[rows.length - 1];
+
+      // Build a markdown-formatted summary for each request_log row so the
+      // existing ChatMarkdown renderer in the admin UI presents it nicely.
+      // We have no prompt/response text in request_log, so this is a
+      // metadata-only history view.
+      const messages = rows.map((r) => {
+        const lines: string[] = [];
+        lines.push(`**${r.status === 'success' ? '✓' : '✗'} ${r.model ?? 'unknown model'}**`);
+        const meta: string[] = [];
+        if (r.promptTokens !== null || r.completionTokens !== null) {
+          meta.push(
+            `${r.promptTokens ?? 0} in · ${r.completionTokens ?? 0} out tok`
+          );
+        }
+        if (r.latencyMs !== null) meta.push(`${r.latencyMs} ms`);
+        if (r.hadTools) meta.push(`tools offered`);
+        if (r.toolCallsCount > 0) meta.push(`${r.toolCallsCount} tool calls`);
+        if (meta.length) lines.push(meta.join(' · '));
+        if (r.toolsUsed && r.toolsUsed.length > 0) {
+          lines.push('');
+          lines.push('Tools used:');
+          for (const t of r.toolsUsed) {
+            lines.push(`- \`${t.name}\` × ${t.count}`);
+          }
+        }
+        if (r.errorMessage) {
+          lines.push('');
+          lines.push('```');
+          lines.push(r.errorMessage);
+          lines.push('```');
+        }
+        return {
+          id: r.id,
+          role: 'assistant' as const,
+          content: lines.join('\n'),
+          tokenCount:
+            (r.promptTokens ?? 0) + (r.completionTokens ?? 0) || null,
+          createdAt: r.createdAt,
+        };
+      });
+
+      const endUser = rows.find((r) => r.endUser)?.endUser ?? null;
+      const session = {
+        id,
+        sessionKey: `${keyMeta.rows[0].name} · ${convId}`,
+        systemPrompt: endUser
+          ? `Stateless API conversation. end_user = ${endUser}`
+          : 'Stateless API conversation.',
+        source: 'api_key' as const,
+        createdAt: first.createdAt,
+        updatedAt: last.createdAt,
+      };
+
+      res.json({ session, messages });
+      return;
+    }
+
+    const session = await getSessionById(id);
     if (!session) {
       res.status(404).json({ error: 'Session not found' });
       return;

@@ -3,16 +3,70 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { useConnection } from "@/components/connection-provider";
+import {
+  DynamicIslandZone,
+  useSafeAreaInsets,
+} from "@/components/safe-area-providers";
+
+const ELECTRIC_CONIC = `conic-gradient(
+  from var(--electric-angle),
+  hsl(264 80% 60%),
+  hsl(200 100% 60%),
+  hsl(160 95% 55%),
+  hsl(264 80% 60%),
+  hsl(320 90% 60%),
+  hsl(264 80% 60%)
+)`;
+
+const ELECTRIC_DANGER_CONIC = `conic-gradient(
+  from var(--electric-angle),
+  hsl(0 85% 55%),
+  hsl(25 95% 55%),
+  hsl(0 85% 55%),
+  hsl(345 80% 50%),
+  hsl(15 90% 55%),
+  hsl(0 85% 55%)
+)`;
+
+const ELECTRIC_ISLAND_STYLE: React.CSSProperties = {
+  animation: "electric-spin 3s linear infinite",
+  // Bleed past env(safe-area-inset-top) so the paint shows as a soft
+  // halo just under the camera, not cut hard at the OS chrome boundary.
+  // The 8px overshoot sits over the chrome's own safe-area padding —
+  // headers pad themselves by safe-area-inset-top, so visible content
+  // is unaffected. The zone is pointer-events:none by default, so the
+  // overlap doesn't intercept taps either.
+  height: "calc(env(safe-area-inset-top, 0px) + 8px)",
+};
 
 export function ElectricBorder({ children }: { children: React.ReactNode }) {
   const { health, message } = useConnection();
+  const insets = useSafeAreaInsets();
 
   const isDanger = health === "expired" || health === "disconnected";
+  // Only render the electric island paint when the device actually has
+  // a top safe-area inset to extend into (iPhone with Dynamic Island /
+  // notch, Android with cutout, iOS PWA status bar). On desktop browsers
+  // the inset is 0 and rendering the zone would just plant an 8px
+  // rainbow stripe at the top of the window — exactly what we don't want.
+  const hasTopInset = insets.top > 0;
 
   return (
-    <div
-      className={`electric-border fixed inset-0 p-[3px] flex flex-col ${isDanger ? "electric-danger" : ""}`}
-    >
+    <>
+      {/* Extend the spinning ribbon up into the iOS Dynamic Island band.
+          Each element gets its own --electric-angle cycle (the @property
+          in globals.css is inherits:false) so this paints independently
+          from .electric-border below — but matched gradient + speed keep
+          the hue pulse visually in sync. */}
+      {hasTopInset && (
+        <DynamicIslandZone
+          background={isDanger ? ELECTRIC_DANGER_CONIC : ELECTRIC_CONIC}
+          style={ELECTRIC_ISLAND_STYLE}
+        />
+      )}
+      <div
+        className={`electric-border p-[3px] flex flex-col ${isDanger ? "electric-danger" : ""}`}
+      >
       {/*
         Outer .electric-border is pinned with fixed + inset-0 so it always
         reaches the device's literal top + bottom edges on iOS — viewport
@@ -46,6 +100,7 @@ export function ElectricBorder({ children }: { children: React.ReactNode }) {
         )}
         <div className="flex flex-1 overflow-hidden">{children}</div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

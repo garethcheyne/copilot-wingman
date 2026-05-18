@@ -7,11 +7,11 @@ RUN npm ci
 
 COPY . .
 
-# Build-time env vars for Next.js (NEXT_PUBLIC_* are inlined at build)
+# Build-time env vars for Next.js (NEXT_PUBLIC_* are inlined at build).
+# We deliberately do NOT pass any API key here — the browser chat client
+# authenticates with the user's session token (see /api/auth/login).
 ARG NEXT_PUBLIC_PROXY_URL=http://localhost:3200
-ARG NEXT_PUBLIC_API_KEY
 ENV NEXT_PUBLIC_PROXY_URL=$NEXT_PUBLIC_PROXY_URL
-ENV NEXT_PUBLIC_API_KEY=$NEXT_PUBLIC_API_KEY
 
 RUN npm run build
 

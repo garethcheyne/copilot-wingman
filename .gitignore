@@ -28,3 +28,5 @@ redis-data/
 *.log
 npm-debug.log*
 resources/anthropic-sdk-typescript/
+
+.EXECUTIVE-SUMMARY.md

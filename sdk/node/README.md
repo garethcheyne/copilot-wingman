@@ -63,6 +63,120 @@ const models = await client.models.list();   // [{ id: "claude-sonnet-4.6", ... 
 const health = await client.health.check();  // { status: "healthy" }
 ```
 
+Filter by capability:
+
+```ts
+const toolCapable   = await client.models.list({ supports: "tool_calls" });
+const both          = await client.models.list({ supports: ["tool_calls", "vision"] });
+const chatEndpoint  = await client.models.list({ endpoint: "/chat/completions" });
+const shortcut      = await client.models.listToolCapable();
+```
+
+Every returned model includes a flattened `supports_tools: boolean` flag in
+addition to the full `capabilities.supports` blob.
+
+## Tool calling (OpenAI-compatible)
+
+`client.chat.completions.create()` is a **stateless** endpoint that mirrors the
+OpenAI Chat Completions shape — including `tools`, `tool_choice`, `tool_calls`,
+and `role: "tool"` messages. The caller owns the conversation history.
+
+```ts
+import Wingman from "@wingman/sdk";
+
+const client = new Wingman({ apiKey: process.env.WINGMAN_API_KEY });
+
+// 1. Discover a tool-capable model.
+const [model] = await client.models.listToolCapable();
+
+// 2. Define your tools (JSON Schema parameters).
+const tools = [{
+  type: "function" as const,
+  function: {
+    name: "get_weather",
+    description: "Get the current weather for a city.",
+    parameters: {
+      type: "object",
+      properties: { city: { type: "string" } },
+      required: ["city"],
+    },
+  },
+}];
+
+// 3. First turn — model decides whether to call a tool.
+const messages = [
+  { role: "system", content: "You are a helpful assistant." },
+  { role: "user",   content: "What's the weather in Auckland?" },
+];
+
+const first = await client.chat.completions.create({
+  model: model.id,
+  messages,
+  tools,
+  tool_choice: "auto",
+});
+
+const call = first.choices[0].message.tool_calls?.[0];
+if (call) {
+  // 4. Run the tool locally, append the result, and call again.
+  const result = JSON.stringify({ temp_c: 18, conditions: "cloudy" });
+
+  const second = await client.chat.completions.create({
+    model: model.id,
+    tools,
+    messages: [
+      ...messages,
+      first.choices[0].message,                            // assistant + tool_calls
+      { role: "tool", tool_call_id: call.id, content: result },
+    ],
+  });
+
+  console.log(second.choices[0].message.content);
+}
+```
+
+### Streaming tool calls
+
+```ts
+const stream = await client.chat.completions.create({
+  model: model.id,
+  messages,
+  tools,
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  const delta = chunk.choices?.[0]?.delta;
+  if (delta?.content) process.stdout.write(delta.content);
+  if (delta?.tool_calls) {
+    // Assemble incremental tool-call fragments yourself — each delta
+    // carries an `index`, optional `id`, optional `function.name`, and
+    // partial `function.arguments` text to concatenate.
+  }
+}
+```
+
+### Tool-calling errors
+
+```ts
+import { ModelNotSupportedError, ModelNotInScopeError } from "@wingman/sdk";
+
+try {
+  await client.chat.completions.create({ model, messages, tools });
+} catch (err) {
+  if (err instanceof ModelNotSupportedError) {
+    // Model doesn't expose tool_calls — pick another via listToolCapable().
+  } else if (err instanceof ModelNotInScopeError) {
+    // API key isn't authorized for this model.
+  } else {
+    throw err;
+  }
+}
+```
+
+Both errors remain `instanceof BadRequestError` / `PermissionDeniedError`
+respectively, so existing catches keep working.
+
 ### Errors
 
 All API errors extend `APIError`, which extends `WingmanError`:

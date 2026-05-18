@@ -42,8 +42,9 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
             className="object-contain drop-shadow-[0_2px_12px_hsl(258_90%_66%/0.5)]"
             priority
           />
+
           <div className="leading-tight">
-            <p className="text-sm font-semibold tracking-tight">Wingman</p>
+            <p className="text-sm font-semibold tracking-tight">Wingman Chat</p>
             <p
               className="font-mono text-[8px] text-muted-foreground tracking-[0.15em] uppercase"
               translate="no"
@@ -52,6 +53,7 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
               {APP_TAGLINE}
             </p>
           </div>
+
         </div>
       </div>
 
@@ -112,8 +114,8 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
                     }
                   }}
                   className={`group w-full text-left px-3 py-3 rounded-lg text-sm transition-colors flex items-start gap-2.5 cursor-pointer min-h-12 ${isActive
-                      ? "bg-secondary/70 border border-primary/30"
-                      : "hover:bg-secondary/40 active:bg-secondary/60 border border-transparent"
+                    ? "bg-secondary/70 border border-primary/30"
+                    : "hover:bg-secondary/40 active:bg-secondary/60 border border-transparent"
                     }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5 mt-0.5 shrink-0 text-muted-foreground" />

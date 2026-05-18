@@ -1,4 +1,5 @@
 {
   "git.autoRepositoryDetection": "openEditors",
-  "git.repositoryScanMaxDepth": 1
+  "git.repositoryScanMaxDepth": 1,
+  "codeQL.githubDatabase.download": "never"
 }

@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   TrendingUp,
+  Wrench,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminFetch } from "@/lib/admin-api";
@@ -27,7 +28,14 @@ interface UsageSummary {
     avgLatencyMs: number | null;
     p50LatencyMs: number | null;
     p99LatencyMs: number | null;
+    toolOfferedRequests: number;
+    toolCalls: number;
   };
+  byTool: Array<{
+    name: string;
+    calls: number;
+    requests: number;
+  }>;
   timeSeries: Array<{
     bucket: string;
     requests: number;
@@ -100,6 +108,11 @@ export default function UsagePage() {
   const totals = data?.totals;
   const series = data?.timeSeries ?? [];
   const byModel = data?.byModel ?? [];
+  const byTool = data?.byTool ?? [];
+  const maxTool = useMemo(() => {
+    if (byTool.length === 0) return 0;
+    return Math.max(...byTool.map((t) => t.calls));
+  }, [byTool]);
 
   const maxSeries = useMemo(() => {
     if (series.length === 0) return 0;
@@ -176,7 +189,7 @@ export default function UsagePage() {
           {/* Stat grid */}
           <section className="space-y-3">
             <p className="label-mono px-1">// Window Summary &middot; {window}</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 stagger-children">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 stagger-children">
               <StatCard
                 label="Requests"
                 accent="primary"
@@ -197,6 +210,13 @@ export default function UsagePage() {
                 icon={<Cpu className="w-3.5 h-3.5" />}
                 value={formatMs(totals.p50LatencyMs)}
                 sub={`p99 ${formatMs(totals.p99LatencyMs)}`}
+              />
+              <StatCard
+                label="Tool Calls"
+                accent="green"
+                icon={<Wrench className="w-3.5 h-3.5" />}
+                value={formatNum(totals.toolCalls)}
+                sub={`${formatNum(totals.toolOfferedRequests)} req w/ tools`}
               />
               <StatCard
                 label="Error Rate"
@@ -249,6 +269,26 @@ export default function UsagePage() {
                   </p>
                 ) : (
                   <ModelBreakdown rows={byModel} max={maxModel} />
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* By tool */}
+          <section className="space-y-3">
+            <p className="label-mono px-1">// Tool Usage</p>
+            <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/60 backdrop-blur-md">
+              <div
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-copilot-green/40 to-transparent"
+              />
+              <div className="px-6 py-5">
+                {byTool.length === 0 ? (
+                  <p className="font-mono text-[11px] tracking-wider text-muted-foreground/70 text-center py-8 uppercase">
+                    // No tool calls in this window
+                  </p>
+                ) : (
+                  <ToolBreakdown rows={byTool} max={maxTool} />
                 )}
               </div>
             </div>
@@ -441,6 +481,51 @@ function ModelBreakdown({
                 <span>{formatMs(row.avgLatencyMs)}</span>
                 <span className="text-foreground font-medium">
                   {row.requests} req
+                </span>
+              </div>
+            </div>
+            <div className="h-2 rounded-full bg-muted/60 overflow-hidden relative">
+              <div
+                className={`h-full rounded-full transition-all duration-500 bg-linear-to-r ${grad}`}
+                style={{ width: `${widthPct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ToolBreakdown({
+  rows,
+  max,
+}: {
+  rows: UsageSummary["byTool"];
+  max: number;
+}) {
+  return (
+    <div className="space-y-3">
+      {rows.map((row, i) => {
+        const widthPct = max > 0 ? (row.calls / max) * 100 : 0;
+        const palette = [
+          "from-copilot-green/40 to-copilot-green",
+          "from-accent/40 to-accent",
+          "from-copilot-purple/40 to-copilot-purple",
+          "from-primary/40 to-primary",
+          "from-yellow-500/40 to-yellow-400",
+        ];
+        const grad = palette[i % palette.length];
+        return (
+          <div key={row.name} className="group">
+            <div className="flex items-center justify-between mb-1.5">
+              <code className="font-mono text-[12px] text-foreground/90 tracking-wide">
+                {row.name}
+              </code>
+              <div className="flex items-center gap-3 font-mono text-[10px] tracking-wider text-muted-foreground">
+                <span>{formatNum(row.requests)} req</span>
+                <span className="text-foreground font-medium">
+                  {formatNum(row.calls)} calls
                 </span>
               </div>
             </div>

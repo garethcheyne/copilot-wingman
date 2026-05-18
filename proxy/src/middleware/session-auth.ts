@@ -1,10 +1,13 @@
 import type { Request, Response, NextFunction } from 'express';
-import { pool } from '../db/client.js';
+import { lookupSessionByRawToken } from '../services/sessions.js';
 
 /**
  * Validate user session token on admin routes.
  * Expects `x-session-token` header with a valid, non-expired session token.
  * Attaches `req.user` on success.
+ *
+ * The raw token from the client is SHA-256 hashed before the DB lookup so
+ * leaked DB rows can't be replayed.
  */
 export async function sessionAuthMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = req.headers['x-session-token'] as string | undefined;
@@ -15,20 +18,14 @@ export async function sessionAuthMiddleware(req: Request, res: Response, next: N
   }
 
   try {
-    const result = await pool.query(
-      `SELECT u.id, u.username, u.display_name, u.role
-       FROM user_sessions s JOIN users u ON s.user_id = u.id
-       WHERE s.token = $1 AND s.expires_at > NOW()`,
-      [token]
-    );
+    const user = await lookupSessionByRawToken(token);
 
-    if (result.rows.length === 0) {
+    if (!user) {
       res.status(401).json({ error: 'Unauthorized — invalid or expired session' });
       return;
     }
 
-    // Attach user to request for downstream handlers
-    (req as any).user = result.rows[0];
+    (req as any).user = user;
     next();
   } catch (err) {
     console.error('[auth] session validation error:', err);

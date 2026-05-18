@@ -137,56 +137,21 @@
   * {
     @apply border-border outline-ring/50;
   }
-  html,
-  body {
-    /* Disable iOS double-tap zoom + browser delay on taps. */
-    touch-action: manipulation;
-    /* Kill the grey tap highlight that screams "this is a website". */
-    -webkit-tap-highlight-color: transparent;
-    /* Stop horizontal rubber-band even in a normal browser tab. */
-    overscroll-behavior-x: none;
-  }
   body {
     @apply bg-background text-foreground;
-    min-height: 100dvh;
-    /* Body stays edge-to-edge — the electric border and brand visuals run
-       to the device glass. Safe-area insets are applied on inner content
-       containers (form columns, electric-border inner shell, etc). */
   }
   html {
     @apply font-sans;
   }
 
-  /* ── Installed PWA: lock the shell like a real app ──────────────────────
-     When the user has added Wingman to their home screen and launches it
-     from the icon, kill all the "this is a website" tells:
-       • no page-level scrolling (each route scrolls its own region)
-       • no rubber-band overscroll
-       • no long-press share/copy callout on UI chrome
-       • no accidental text selection while dragging
-     In a regular browser tab none of this applies — pages scroll normally. */
+  /* PWA scroll-lock + touch/selection reset live in pwa-safezone/css
+     (imported by app/layout.tsx). The package's reset puts position:fixed
+     on <body> only — never on <html> — and handles touch-action,
+     tap-highlight, and overscroll across both browser and standalone
+     modes. The single chat-specific gap is selection on .chat-markdown:
+     the package re-enables selection on .pwa-selectable, so extend that
+     to .chat-markdown without redeclaring the whole standalone rule. */
   @media (display-mode: standalone), (display-mode: fullscreen) {
-    html,
-    body {
-      height: 100dvh;
-      overflow: hidden;
-      overscroll-behavior: none;
-      position: fixed;
-      inset: 0;
-      width: 100%;
-    }
-    body {
-      -webkit-touch-callout: none;
-      -webkit-user-select: none;
-      user-select: none;
-    }
-    /* Re-allow selection / copy on real content. */
-    input,
-    textarea,
-    [contenteditable="true"],
-    .selectable,
-    pre,
-    code,
     .chat-markdown,
     .chat-markdown * {
       -webkit-user-select: text;
@@ -483,11 +448,20 @@
 
 .electric-border {
   --electric-speed: 3s;
-  /* No position declared — positioning is controlled by Tailwind classes
-     on the JSX (currently `fixed inset-0` so the ribbon pins to the
-     viewport's literal edges). Declaring `position: relative` here would
-     win over the Tailwind `fixed` class because of CSS source order,
-     which kept the element from filling the viewport on desktop. */
+  /* Pinned to the viewport's literal hardware edges.
+     CRITICAL: drive the size with width/height (100vw/100lvh) instead of
+     `bottom: 0`/`right: 0`. The diagnostic matrix confirmed that on iOS
+     PWA the `bottom: 0` anchor lands at innerHeight (the SMALL viewport
+     that excludes the home-indicator zone) — even though display-mode is
+     standalone and env(safe-area-inset-bottom) is being reported. Using
+     100lvh (largest viewport) sizes the element to the FULL device screen,
+     so the ribbon reaches the home-indicator edge. 100vw/100lvw work the
+     same way for the width axis. */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100lvh;
   border-radius: 12px;
   background: conic-gradient(
     from var(--electric-angle),

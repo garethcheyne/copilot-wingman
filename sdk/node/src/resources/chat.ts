@@ -1,6 +1,7 @@
 import { APIResource } from "./health.js";
 import type { RequestOptions } from "../client.js";
 import { Stream, type ChatStreamChunk } from "../stream.js";
+import { ChatCompletions } from "./chat-completions.js";
 
 export interface ChatCreateParams {
   /** Server-side conversation identifier; reuse to keep context across turns. */
@@ -35,6 +36,15 @@ export interface ChatStreamHelper extends AsyncIterable<string> {
 }
 
 export class Chat extends APIResource {
+  /**
+   * OpenAI-compatible stateless chat completions with tool/function calling.
+   *
+   * ```ts
+   * await client.chat.completions.create({ model, messages, tools });
+   * ```
+   */
+  readonly completions: ChatCompletions = new ChatCompletions(this._client);
+
   /**
    * POST /api/chat
    *

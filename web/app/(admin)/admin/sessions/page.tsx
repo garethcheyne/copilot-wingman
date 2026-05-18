@@ -12,10 +12,12 @@ import {
   KeyRound,
   Globe,
   Filter,
+  Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminFetch } from "@/lib/admin-api";
+import { ChatMarkdown } from "@/components/chat-markdown";
 
 type SessionSource = "ui" | "api_key";
 
@@ -32,6 +34,10 @@ interface SessionSummary {
   apiKeyId: string | null;
   apiKeyName: string | null;
   apiKeyPrefix: string | null;
+  // Populated only for stateless API-key conversations (synthetic rows).
+  endUser: string | null;
+  conversationId: string | null;
+  toolCalls: number;
 }
 
 interface MessageRow {
@@ -143,7 +149,7 @@ export default function SessionsPage() {
       return;
     }
     setLoadingDetail(true);
-    adminFetch(`/api/admin/sessions/${selectedId}`)
+    adminFetch(`/api/admin/sessions/${encodeURIComponent(selectedId)}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(setDetail)
       .catch(() => setDetail(null))
@@ -151,6 +157,10 @@ export default function SessionsPage() {
   }, [selectedId]);
 
   const handleDelete = async (id: string) => {
+    if (id.startsWith("apikey:")) {
+      // Synthetic API-key conversation: no chat_sessions row to delete.
+      return;
+    }
     setDeleting(id);
     try {
       const res = await adminFetch(`/api/admin/sessions/${id}`, {
@@ -460,6 +470,14 @@ function SessionRow({
   onDelete: () => void;
   onFilterKey: () => void;
 }) {
+  // Synthetic rows represent stateless API-key conversations grouped from
+  // request_log — there's no chat_sessions row to open or delete.
+  const isSynthetic = session.id.startsWith("apikey:");
+  const displayKey =
+    session.sessionKey ??
+    session.conversationId ??
+    session.id;
+
   return (
     <div
       className={`group relative overflow-hidden rounded-xl border transition-all cursor-pointer ${
@@ -500,7 +518,7 @@ function SessionRow({
               <SourceBadge session={session} />
             </button>
             <code className="font-mono text-[11px] tracking-wide text-foreground/90 truncate max-w-50 sm:max-w-65">
-              {session.sessionKey}
+              {displayKey}
             </code>
           </div>
           <Button
@@ -512,7 +530,8 @@ function SessionRow({
               e.stopPropagation();
               onDelete();
             }}
-            disabled={deleting}
+            disabled={deleting || isSynthetic}
+            title={isSynthetic ? "Stateless API conversation — nothing to delete" : "Delete"}
           >
             {deleting ? (
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -523,13 +542,19 @@ function SessionRow({
         </div>
 
         {session.source === "api_key" && session.apiKeyPrefix && (
-          <p className="font-mono text-[9px] tracking-wider text-muted-foreground/70 mb-1.5 truncate">
+          <p className="font-mono text-[9px] tracking-wider text-muted-foreground/70 mb-1 truncate">
             {session.apiKeyPrefix}… · key id {session.apiKeyId?.slice(0, 8)}
           </p>
         )}
 
+        {session.endUser && (
+          <p className="font-mono text-[9px] tracking-wider text-foreground/70 mb-1.5 truncate">
+            user: <span className="text-foreground">{session.endUser}</span>
+          </p>
+        )}
+
         <div className="flex items-center gap-3 font-mono text-[10px] tracking-wider text-muted-foreground">
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1" title={isSynthetic ? "turns" : "messages"}>
             <MessageSquare className="w-2.5 h-2.5" />
             {session.messageCount}
           </span>
@@ -537,6 +562,12 @@ function SessionRow({
             <span className="flex items-center gap-1">
               <Hash className="w-2.5 h-2.5" />
               {session.totalTokens.toLocaleString()}
+            </span>
+          )}
+          {session.toolCalls > 0 && (
+            <span className="flex items-center gap-1 text-copilot-green/90" title="tool calls">
+              <Wrench className="w-2.5 h-2.5" />
+              {session.toolCalls}
             </span>
           )}
           <span className="ml-auto">{formatRelative(session.lastMessageAt ?? session.updatedAt)}</span>
@@ -657,15 +688,15 @@ function MessageBlock({ message }: { message: MessageRow }) {
           </span>
         </div>
         <div
-          className={`text-sm whitespace-pre-wrap break-words leading-relaxed px-4 py-3 rounded-lg border ${
+          className={`text-sm break-words leading-relaxed px-4 py-3 rounded-lg border ${
             isUser
-              ? "bg-primary/6 border-primary/20 border-l-2 border-l-primary"
+              ? "bg-primary/6 border-primary/20 border-l-2 border-l-primary whitespace-pre-wrap"
               : isAssistant
               ? "bg-card/60 border-border/70 border-l-2 border-l-copilot-purple"
-              : "bg-accent/8 border-accent/30 border-l-2 border-l-accent"
+              : "bg-accent/8 border-accent/30 border-l-2 border-l-accent whitespace-pre-wrap"
           }`}
         >
-          {message.content}
+          {isAssistant ? <ChatMarkdown content={message.content} /> : message.content}
         </div>
       </div>
     </div>

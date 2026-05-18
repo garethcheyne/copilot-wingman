@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardHeader,
@@ -40,6 +41,10 @@ import {
   AlertTriangle,
   CalendarIcon,
   Pencil,
+  Wrench,
+  Layers,
+  Sparkles,
+  Wand2,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -52,6 +57,16 @@ interface AvailableModel {
   name: string;
   vendor: string;
   category?: string;
+  capabilities?: {
+    supports?: {
+      tool_calls?: boolean;
+      parallel_tool_calls?: boolean;
+      vision?: boolean;
+      streaming?: boolean;
+      structured_outputs?: boolean;
+      thinking?: boolean;
+    };
+  } | null;
 }
 
 interface ApiKey {
@@ -121,6 +136,89 @@ export default function ApiKeysPage() {
   const [editRateLimit, setEditRateLimit] = useState("30");
   const [editExpiry, setEditExpiry] = useState<Date | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+
+  // Tool-capable-only filter (per dialog)
+  const [createToolOnly, setCreateToolOnly] = useState(false);
+  const [editToolOnly, setEditToolOnly] = useState(false);
+
+  const selectAllToolCapable = (target: "create" | "edit") => {
+    const ids = availableModels
+      .filter((m) => m.capabilities?.supports?.tool_calls)
+      .map((m) => m.id);
+    if (target === "create") {
+      setSelectedScopes(ids);
+      if (newDefaultModel && !ids.includes(newDefaultModel)) setNewDefaultModel(null);
+    } else {
+      setEditScopes(ids);
+      if (editDefaultModel && !ids.includes(editDefaultModel)) setEditDefaultModel(null);
+    }
+  };
+
+  const toolCapableCount = availableModels.filter(
+    (m) => m.capabilities?.supports?.tool_calls,
+  ).length;
+
+  // "Help me choose" recommender state
+  const [recommendOpen, setRecommendOpen] = useState(false);
+  const [recommendTarget, setRecommendTarget] = useState<"create" | "edit">("create");
+  const [recommendInput, setRecommendInput] = useState("");
+  const [recommendPreference, setRecommendPreference] = useState<"cheap" | "balanced" | "powerful">("balanced");
+  const [recommendRequiresTools, setRecommendRequiresTools] = useState(false);
+  const [recommendLoading, setRecommendLoading] = useState(false);
+  const [recommendError, setRecommendError] = useState<string | null>(null);
+  const [recommendResult, setRecommendResult] = useState<{
+    recommended: string[];
+    defaultModel: string | null;
+    reasoning: string;
+    routerModel: string;
+  } | null>(null);
+
+  const openRecommend = (target: "create" | "edit") => {
+    setRecommendTarget(target);
+    setRecommendResult(null);
+    setRecommendError(null);
+    setRecommendOpen(true);
+  };
+
+  const runRecommend = async () => {
+    const desc = recommendInput.trim();
+    if (!desc) return;
+    setRecommendLoading(true);
+    setRecommendError(null);
+    setRecommendResult(null);
+    try {
+      const res = await adminFetch("/api/admin/recommend-models", {
+        method: "POST",
+        body: JSON.stringify({
+          projectDescription: desc,
+          preference: recommendPreference,
+          requiresTools: recommendRequiresTools,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRecommendError(data.error ?? `Request failed (${res.status})`);
+      } else {
+        setRecommendResult(data);
+      }
+    } catch (err) {
+      setRecommendError((err as Error).message);
+    } finally {
+      setRecommendLoading(false);
+    }
+  };
+
+  const applyRecommendation = () => {
+    if (!recommendResult) return;
+    if (recommendTarget === "create") {
+      setSelectedScopes(recommendResult.recommended);
+      setNewDefaultModel(recommendResult.defaultModel);
+    } else {
+      setEditScopes(recommendResult.recommended);
+      setEditDefaultModel(recommendResult.defaultModel);
+    }
+    setRecommendOpen(false);
+  };
 
   const loadKeys = useCallback(async () => {
     setLoading(true);
@@ -379,28 +477,80 @@ export default function ApiKeysPage() {
                 </div>
               ) : (
                 <div className="rounded-lg border border-border/50 bg-background/50">
+                  <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-1.5">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <Switch
+                        checked={createToolOnly}
+                        onCheckedChange={setCreateToolOnly}
+                      />
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1">
+                        <Wrench className="w-3 h-3" /> Tool-capable only
+                      </span>
+                      <span className="font-mono text-[10px] text-muted-foreground/60">
+                        ({toolCapableCount})
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] font-mono uppercase tracking-widest text-copilot-purple gap-1"
+                        onClick={() => openRecommend("create")}
+                        title="Ask a Copilot model to recommend a scope for your project"
+                      >
+                        <Wand2 className="w-3 h-3" /> Help me choose
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] font-mono uppercase tracking-widest text-muted-foreground"
+                        onClick={() => selectAllToolCapable("create")}
+                        disabled={toolCapableCount === 0}
+                        title="Select every model Copilot exposes tool calling for"
+                      >
+                        Select all tool-capable
+                      </Button>
+                    </div>
+                  </div>
                   <ScrollArea className="h-44">
                     <div className="space-y-3 p-3">
                       {(["powerful", "versatile", "lightweight"] as const).map((cat) => {
-                        const models = availableModels.filter((m) => m.category === cat);
+                        const models = availableModels.filter(
+                          (m) =>
+                            m.category === cat &&
+                            (!createToolOnly || m.capabilities?.supports?.tool_calls),
+                        );
                         if (models.length === 0) return null;
                         return (
                           <div key={cat} className="space-y-1.5">
                             <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{cat}</span>
                             <div className="flex flex-wrap gap-1.5">
-                              {models.map((model) => (
-                                <Badge
-                                  key={model.id}
-                                  variant={selectedScopes.includes(model.id) ? "default" : "outline"}
-                                  className="cursor-pointer select-none transition-colors"
-                                  onClick={() => toggleScope(model.id)}
-                                >
-                                  {selectedScopes.includes(model.id) && (
-                                    <Check className="w-3 h-3 mr-0.5" />
-                                  )}
-                                  {model.id}
-                                </Badge>
-                              ))}
+                              {models.map((model) => {
+                                const tools = !!model.capabilities?.supports?.tool_calls;
+                                const parallel = !!model.capabilities?.supports?.parallel_tool_calls;
+                                return (
+                                  <Badge
+                                    key={model.id}
+                                    variant={selectedScopes.includes(model.id) ? "default" : "outline"}
+                                    className="cursor-pointer select-none transition-colors gap-1"
+                                    onClick={() => toggleScope(model.id)}
+                                    title={
+                                      tools
+                                        ? parallel
+                                          ? "Copilot accepts tool calls (parallel) on this model"
+                                          : "Copilot accepts tool calls on this model"
+                                        : "Copilot does NOT expose tool calling on this model"
+                                    }
+                                  >
+                                    {selectedScopes.includes(model.id) && (
+                                      <Check className="w-3 h-3" />
+                                    )}
+                                    {model.id}
+                                    {tools && <Wrench className="w-3 h-3 opacity-70" />}
+                                    {parallel && <Layers className="w-3 h-3 opacity-70" />}
+                                  </Badge>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -722,28 +872,80 @@ export default function ApiKeysPage() {
                 </div>
               ) : (
                 <div className="rounded-lg border border-border/50 bg-background/50">
+                  <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-1.5">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <Switch
+                        checked={editToolOnly}
+                        onCheckedChange={setEditToolOnly}
+                      />
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground inline-flex items-center gap-1">
+                        <Wrench className="w-3 h-3" /> Tool-capable only
+                      </span>
+                      <span className="font-mono text-[10px] text-muted-foreground/60">
+                        ({toolCapableCount})
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] font-mono uppercase tracking-widest text-copilot-purple gap-1"
+                        onClick={() => openRecommend("edit")}
+                        title="Ask a Copilot model to recommend a scope for your project"
+                      >
+                        <Wand2 className="w-3 h-3" /> Help me choose
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] font-mono uppercase tracking-widest text-muted-foreground"
+                        onClick={() => selectAllToolCapable("edit")}
+                        disabled={toolCapableCount === 0}
+                        title="Select every model Copilot exposes tool calling for"
+                      >
+                        Select all tool-capable
+                      </Button>
+                    </div>
+                  </div>
                   <ScrollArea className="h-44">
                     <div className="space-y-3 p-3">
                       {(["powerful", "versatile", "lightweight"] as const).map((cat) => {
-                        const models = availableModels.filter((m) => m.category === cat);
+                        const models = availableModels.filter(
+                          (m) =>
+                            m.category === cat &&
+                            (!editToolOnly || m.capabilities?.supports?.tool_calls),
+                        );
                         if (models.length === 0) return null;
                         return (
                           <div key={cat} className="space-y-1.5">
                             <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">{cat}</span>
                             <div className="flex flex-wrap gap-1.5">
-                              {models.map((model) => (
-                                <Badge
-                                  key={model.id}
-                                  variant={editScopes.includes(model.id) ? "default" : "outline"}
-                                  className="cursor-pointer select-none transition-colors"
-                                  onClick={() => toggleEditScope(model.id)}
-                                >
-                                  {editScopes.includes(model.id) && (
-                                    <Check className="w-3 h-3 mr-0.5" />
-                                  )}
-                                  {model.id}
-                                </Badge>
-                              ))}
+                              {models.map((model) => {
+                                const tools = !!model.capabilities?.supports?.tool_calls;
+                                const parallel = !!model.capabilities?.supports?.parallel_tool_calls;
+                                return (
+                                  <Badge
+                                    key={model.id}
+                                    variant={editScopes.includes(model.id) ? "default" : "outline"}
+                                    className="cursor-pointer select-none transition-colors gap-1"
+                                    onClick={() => toggleEditScope(model.id)}
+                                    title={
+                                      tools
+                                        ? parallel
+                                          ? "Copilot accepts tool calls (parallel) on this model"
+                                          : "Copilot accepts tool calls on this model"
+                                        : "Copilot does NOT expose tool calling on this model"
+                                    }
+                                  >
+                                    {editScopes.includes(model.id) && (
+                                      <Check className="w-3 h-3" />
+                                    )}
+                                    {model.id}
+                                    {tools && <Wrench className="w-3 h-3 opacity-70" />}
+                                    {parallel && <Layers className="w-3 h-3 opacity-70" />}
+                                  </Badge>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -857,6 +1059,141 @@ export default function ApiKeysPage() {
               )}
               Save Changes
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Help me choose — model recommendation assistant */}
+      <Dialog open={recommendOpen} onOpenChange={setRecommendOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="w-4 h-4 text-copilot-purple" />
+              Help me choose
+            </DialogTitle>
+            <DialogDescription>
+              Describe what this API key will be used for. A Copilot model will look at every model
+              your subscription exposes — including which ones actually accept tool calls via Copilot —
+              and pick a scope for you.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="recommend-input">Project description</Label>
+              <Textarea
+                id="recommend-input"
+                placeholder="e.g. A Python service that summarises customer support tickets and writes responses. No images. Needs to be cheap to run."
+                value={recommendInput}
+                onChange={(e) => setRecommendInput(e.target.value)}
+                rows={5}
+                disabled={recommendLoading}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs">Cost preference</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {(["cheap", "balanced", "powerful"] as const).map((p) => (
+                    <Badge
+                      key={p}
+                      variant={recommendPreference === p ? "default" : "outline"}
+                      className="cursor-pointer select-none capitalize"
+                      onClick={() => setRecommendPreference(p)}
+                    >
+                      {p}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Requires tool calling?</Label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <Switch
+                    checked={recommendRequiresTools}
+                    onCheckedChange={setRecommendRequiresTools}
+                    disabled={recommendLoading}
+                  />
+                  <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                    <Wrench className="w-3 h-3" />
+                    {recommendRequiresTools ? "Yes — only tool-capable models" : "Auto-detect"}
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {recommendError && (
+              <Alert className="border-destructive/40 bg-destructive/5">
+                <AlertTriangle className="w-4 h-4 text-destructive" />
+                <AlertTitle className="text-destructive text-sm">Recommendation failed</AlertTitle>
+                <AlertDescription className="text-xs">{recommendError}</AlertDescription>
+              </Alert>
+            )}
+
+            {recommendResult && (
+              <div className="rounded-lg border border-copilot-purple/30 bg-copilot-purple/5 p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-copilot-purple" />
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-copilot-purple">
+                    Recommended scope
+                  </span>
+                  <span className="font-mono text-[10px] text-muted-foreground/60 ml-auto">
+                    via {recommendResult.routerModel}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {recommendResult.recommended.map((id) => (
+                    <Badge
+                      key={id}
+                      variant={id === recommendResult.defaultModel ? "default" : "outline"}
+                      className="gap-1"
+                    >
+                      {id === recommendResult.defaultModel && <Check className="w-3 h-3" />}
+                      {id}
+                    </Badge>
+                  ))}
+                </div>
+                {recommendResult.defaultModel && (
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Default → <span className="text-foreground">{recommendResult.defaultModel}</span>
+                  </p>
+                )}
+                {recommendResult.reasoning && (
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {recommendResult.reasoning}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setRecommendOpen(false)}
+              disabled={recommendLoading}
+            >
+              Cancel
+            </Button>
+            {recommendResult ? (
+              <Button onClick={applyRecommendation} className="gap-2">
+                <Check className="w-4 h-4" />
+                Apply to {recommendTarget === "create" ? "new key" : "this key"}
+              </Button>
+            ) : (
+              <Button
+                onClick={runRecommend}
+                disabled={recommendLoading || !recommendInput.trim()}
+                className="gap-2"
+              >
+                {recommendLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Wand2 className="w-4 h-4" />
+                )}
+                {recommendLoading ? "Thinking…" : "Ask Copilot"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

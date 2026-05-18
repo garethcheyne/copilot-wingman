@@ -12,7 +12,7 @@ export class WingmanError extends Error {
 }
 
 export interface APIErrorBody {
-  error?: string | { message?: string; type?: string };
+  error?: string | { message?: string; type?: string; code?: string; param?: string };
   message?: string;
   [key: string]: unknown;
 }
@@ -64,6 +64,16 @@ export class APIError extends WingmanError {
     headers: Headers | undefined
   ): APIError {
     if (!status) return new APIConnectionError(message ?? "Connection failed");
+
+    // Prefer error.code mapping when the server provides a structured error.
+    const code = APIError.extractCode(body);
+    if (code === "model_does_not_support_tools" || code === "model_endpoint_unsupported") {
+      return new ModelNotSupportedError(status, body, message, headers);
+    }
+    if (code === "model_not_in_scope") {
+      return new ModelNotInScopeError(status, body, message, headers);
+    }
+
     switch (status) {
       case 400:
         return new BadRequestError(status, body, message, headers);
@@ -83,6 +93,16 @@ export class APIError extends WingmanError {
         if (status >= 500) return new InternalServerError(status, body, message, headers);
         return new APIError(status, body, message, headers);
     }
+  }
+
+  /** Extract a structured error code (`error.code`) from the response body, if any. */
+  private static extractCode(body: APIErrorBody | string | undefined): string | undefined {
+    if (!body || typeof body === "string") return undefined;
+    const err = body.error;
+    if (err && typeof err === "object" && "code" in err && typeof (err as { code?: unknown }).code === "string") {
+      return (err as { code: string }).code;
+    }
+    return undefined;
   }
 }
 
@@ -154,5 +174,30 @@ export class InternalServerError extends APIError {
   constructor(s: number | undefined, b: APIErrorBody | string | undefined, m: string | undefined, h: Headers | undefined) {
     super(s, b, m, h);
     this.name = "InternalServerError";
+  }
+}
+
+/**
+ * Thrown when the server reports `model_does_not_support_tools` or
+ * `model_endpoint_unsupported` — a 400 caused by the chosen model lacking
+ * the capability the request requires.
+ *
+ * Remains `instanceof BadRequestError` for compatibility with existing catches.
+ */
+export class ModelNotSupportedError extends BadRequestError {
+  constructor(s: number | undefined, b: APIErrorBody | string | undefined, m: string | undefined, h: Headers | undefined) {
+    super(s, b, m, h);
+    this.name = "ModelNotSupportedError";
+  }
+}
+
+/**
+ * Thrown when the server reports `model_not_in_scope` — the API key isn't
+ * authorized for the requested model. Remains `instanceof PermissionDeniedError`.
+ */
+export class ModelNotInScopeError extends PermissionDeniedError {
+  constructor(s: number | undefined, b: APIErrorBody | string | undefined, m: string | undefined, h: Headers | undefined) {
+    super(s, b, m, h);
+    this.name = "ModelNotInScopeError";
   }
 }

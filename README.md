@@ -246,6 +246,65 @@ copilot-wingman/
     └── wingman-ai.png
 ```
 
+## What Wingman is not
+
+Wingman is a **transport-layer traffic controller** for GitHub Copilot's model
+catalog. It routes, authenticates, rate-limits, and logs. It does not — and
+cannot — modify how the underlying models *decode*.
+
+### Parallel tool calls
+
+When tool calling lands (planned for SDK v0.2 — see
+[PLAN-TOOL-CALLING.md](./PLAN-TOOL-CALLING.md)), Wingman passes the upstream
+`capabilities.supports.parallel_tool_calls` flag through to clients. Whether a
+model emits *one* tool call per assistant turn or *several* in parallel is a
+model-side behaviour decided inside the decoder.
+
+At the time of writing:
+
+| Model (via Copilot)   | Parallel tool calls   | Effect for tool-using agents |
+| --------------------- | --------------------- | ---------------------------- |
+| `gpt-4o`              | ✅                     | Multiple tool calls per turn |
+| `claude-sonnet-4.x`   | ✅ (via normalisation) | Multiple tool calls per turn |
+| `gemini-2.x`          | ✅                     | Multiple tool calls per turn |
+
+**Note on Claude:** GitHub Copilot's `/chat/completions` endpoint leaks
+Anthropic's native multi-content-block shape upstream — instead of returning the
+OpenAI-standard `choices[0].message.tool_calls: [a, b, c]`, it returns several
+sibling `choices[]` (one prose, three tool calls) with no `index`. An
+OpenAI-compatible client would inspect `choices[0]` only and conclude "no tool
+calls", even though `finish_reason` was `tool_calls`. Wingman now collapses
+this in `normalizeChatCompletion()` (`proxy/src/services/copilot-client.ts`):
+indexless multi-choice responses become a single OpenAI-shape choice with all
+`tool_calls[]` merged and any prose / reasoning concatenated. Standard
+responses (`n > 1` requests with distinct indices) pass through untouched.
+
+Confirmed end-to-end: `claude-sonnet-4.6` returned three `get_weather` calls in
+a single assistant turn; we executed them locally, fed the results back, and
+Claude composed a final answer using all three.
+
+**What Wingman still won't do:** *fabricate* parallel tool calls when the
+upstream model genuinely emits one at a time. Normalising Copilot's malformed
+multi-choice envelope is shape-preserving; inventing tool-call IDs the model
+never authorised would be a correctness hazard. Different thing entirely.
+
+### GitHub Copilot quota
+
+Every Wingman call consumes against the *GitHub user's* quota whose OAuth token
+backs the active `gh_connection`. Premium models (Claude, GPT-4o, o1, etc.) burn
+your monthly **premium-request** allowance; the base model (currently GPT-4.1)
+is unlimited on Business / Enterprise plans.
+
+If you run Wingman against your personal Copilot account, expect heavy Wingman
+traffic to compete with your day-to-day VS Code Copilot usage. Mitigations:
+
+- **Use a service-account GitHub user** for Wingman's OAuth connection — its
+  own seat, its own quota pool.
+- **Route non-premium workloads** (classification, summarisation) to the base
+  model — quality dip is small, premium quota is preserved.
+- **Multi-connection rotation** — add several `gh_connections` rows; Wingman
+  can round-robin (roadmap item, not in v0.2).
+
 ## Acknowledgements
 
 A heartfelt thank-you to **[Anthropic](https://www.anthropic.com)** — parts of

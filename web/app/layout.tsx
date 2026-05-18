@@ -4,6 +4,8 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/components/auth-provider";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
+import { SafeAreaProvider } from "@/components/safe-area-providers";
+import "pwa-safezone/css";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -90,11 +92,13 @@ export default function RootLayout({
             className="fixed inset-0 -z-10 pointer-events-none opacity-40 bg-vignette-copilot"
           />
 
-          <div className="relative flex flex-col min-h-full">
-            <AuthProvider>
-              {children}
-            </AuthProvider>
-          </div>
+          <SafeAreaProvider>
+            <div className="relative flex flex-col min-h-full">
+              <AuthProvider>
+                {children}
+              </AuthProvider>
+            </div>
+          </SafeAreaProvider>
           <ServiceWorkerRegistrar />
           <Toaster richColors position="top-right" theme="dark" />
         </ThemeProvider>

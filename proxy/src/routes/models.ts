@@ -8,6 +8,7 @@ export const modelsRouter = Router();
 /** Shape a DB row into a clean API response object */
 function formatModel(m: StoredModel) {
   const caps = m.capabilities;
+  const supports = (caps?.supports ?? {}) as Record<string, boolean | undefined>;
   return {
     id: m.id,
     name: m.name,
@@ -20,6 +21,7 @@ function formatModel(m: StoredModel) {
     description: m.description,
     best_for: m.best_for,
     premium_multiplier: m.premium_multiplier,
+    supports_tools: supports.tool_calls === true,
     capabilities: caps
       ? {
           type: caps.type,
@@ -32,6 +34,18 @@ function formatModel(m: StoredModel) {
   };
 }
 
+type FormattedModel = ReturnType<typeof formatModel>;
+
+/** Parse comma-separated query param into a clean list of capability flag names. */
+function parseSupports(raw: unknown): string[] {
+  if (raw === undefined) return [];
+  const values = Array.isArray(raw) ? raw : [raw];
+  return values
+    .flatMap((v) => String(v).split(','))
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 /**
  * GET /api/models
  *
@@ -39,6 +53,14 @@ function formatModel(m: StoredModel) {
  * (populated by the model sync service). API key users never see the full catalog.
  *
  * Internal key (web UI) gets all active models.
+ *
+ * Optional query params:
+ *   ?supports=tool_calls            — only models supporting this capability
+ *   ?supports=tool_calls,vision     — AND semantics (must support all listed)
+ *   ?endpoint=/chat/completions     — only models on the given upstream endpoint
+ *   ?chat_only=true                 — convenience: chat_enabled=true
+ *
+ * Filters run AFTER the API-key scope check, so they cannot widen scope.
  */
 modelsRouter.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -53,7 +75,28 @@ modelsRouter.get('/', async (req: Request, res: Response): Promise<void> => {
       dbModels = await getActiveModels();
     }
 
-    const models = dbModels.map(formatModel);
+    let models: FormattedModel[] = dbModels.map(formatModel);
+
+    // ─ filtering ────────────────────────────────────────────────────────────
+    const supports = parseSupports(req.query.supports);
+    if (supports.length) {
+      models = models.filter((m) => {
+        const s = (m.capabilities?.supports ?? {}) as Record<string, boolean | undefined>;
+        return supports.every((flag) => s[flag] === true);
+      });
+    }
+
+    const endpoint = typeof req.query.endpoint === 'string' ? req.query.endpoint : null;
+    if (endpoint) {
+      models = models.filter((m) => {
+        const eps = m.supported_endpoints ?? [];
+        return eps.length === 0 || eps.includes(endpoint);
+      });
+    }
+
+    if (req.query.chat_only === 'true' || req.query.chat_only === '1') {
+      models = models.filter((m) => m.chat_enabled);
+    }
 
     res.json({
       models,

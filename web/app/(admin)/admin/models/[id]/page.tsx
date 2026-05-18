@@ -49,6 +49,7 @@ interface Model {
     supports?: {
       streaming?: boolean;
       tool_calls?: boolean;
+      parallel_tool_calls?: boolean;
       vision?: boolean;
       structured_outputs?: boolean;
       thinking?: boolean;
@@ -379,6 +380,7 @@ export default function ModelDetailPage() {
           <div className="flex flex-wrap gap-2">
             <FeatureChip label="Streaming" enabled={caps.supports.streaming} />
             <FeatureChip label="Tool Calls" enabled={caps.supports.tool_calls} />
+            <FeatureChip label="Parallel Tool Calls" enabled={caps.supports.parallel_tool_calls} />
             <FeatureChip label="Vision" enabled={caps.supports.vision} />
             <FeatureChip label="Structured Output" enabled={caps.supports.structured_outputs} />
             <FeatureChip label="Thinking" enabled={caps.supports.thinking} />

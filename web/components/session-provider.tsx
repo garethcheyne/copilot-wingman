@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { adminFetch } from "@/lib/admin-api";
+import { randomUUID } from "@/lib/utils";
 
 const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL ?? "http://localhost:3200";
 const STORAGE_KEY = "wingman_active_session";
@@ -46,9 +47,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [activeSessionKey, setActiveSessionKey] = useState<string>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem(STORAGE_KEY) || crypto.randomUUID();
+      return localStorage.getItem(STORAGE_KEY) || randomUUID();
     }
-    return crypto.randomUUID();
+    return randomUUID();
   });
   const [loading, setLoading] = useState(true);
 
@@ -87,7 +88,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [refreshSessions]);
 
   const createNewSession = useCallback(() => {
-    const newKey = crypto.randomUUID();
+    const newKey = randomUUID();
     setActiveSessionKey(newKey);
   }, []);
 
@@ -101,7 +102,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       await adminFetch(`/api/admin/sessions/${sessionId}`, { method: "DELETE" });
       // If we deleted the active session, create a new one
       if (session?.sessionKey === activeSessionKey) {
-        setActiveSessionKey(crypto.randomUUID());
+        setActiveSessionKey(randomUUID());
       }
       await refreshSessions();
     } catch {

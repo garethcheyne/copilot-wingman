@@ -28,6 +28,7 @@ import {
   MobileNavTrigger,
   useMobileNav,
 } from "@/components/mobile-nav";
+import { APP_TAGLINE } from "@/lib/version";
 
 type NavItem = {
   href: string;
@@ -203,12 +204,20 @@ function AdminNavBody() {
             className="object-contain drop-shadow-[0_2px_12px_hsl(258_90%_66%/0.5)]"
             priority
           />
+
+
           <div className="leading-tight">
-            <p className="text-sm font-semibold tracking-tight">Admin</p>
-            <p className="font-mono text-[10px] text-muted-foreground tracking-[0.15em]">
-              127.0.0.1 · LOCAL
+            <p className="text-sm font-semibold tracking-tight">Wingman Admin</p>
+            <p
+              className="font-mono text-[8px] text-muted-foreground tracking-[0.15em] uppercase"
+              translate="no"
+              suppressHydrationWarning
+            >
+              {APP_TAGLINE}
             </p>
           </div>
+
+
         </div>
       </div>
 

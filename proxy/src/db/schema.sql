@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS user_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token VARCHAR(64) NOT NULL UNIQUE,
+    token TEXT NOT NULL UNIQUE,
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -108,6 +108,18 @@ CREATE TABLE IF NOT EXISTS request_log (
     latency_ms INT,
     status VARCHAR(20) NOT NULL CHECK (status IN ('success', 'error')),
     error_message TEXT,
+    -- Multi-tenant labelling supplied by the calling app.
+    -- `end_user` is the app's own user identifier (e.g. "john@acme.com"),
+    -- accepted via OpenAI's standard `user` body field or the X-Wingman-User header.
+    -- `conversation_id` groups multiple turns into a single thread for that user,
+    -- supplied via X-Wingman-Conversation. Both nullable: stateless callers
+    -- that don't care about attribution can ignore them.
+    end_user TEXT,
+    conversation_id TEXT,
+    -- Tool-call telemetry captured from the normalised upstream response.
+    tool_calls_count INT NOT NULL DEFAULT 0,
+    tools_used JSONB,                          -- e.g. [{"name":"get_weather","count":4}]
+    had_tools BOOLEAN NOT NULL DEFAULT FALSE,  -- whether the request *offered* tools
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -115,6 +127,12 @@ CREATE INDEX IF NOT EXISTS idx_request_log_created ON request_log(created_at DES
 CREATE INDEX IF NOT EXISTS idx_request_log_session ON request_log(session_id);
 CREATE INDEX IF NOT EXISTS idx_request_log_model ON request_log(model);
 CREATE INDEX IF NOT EXISTS idx_request_log_api_key ON request_log(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_request_log_end_user
+    ON request_log(end_user) WHERE end_user IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_request_log_conversation
+    ON request_log(conversation_id) WHERE conversation_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_request_log_had_tools
+    ON request_log(had_tools) WHERE had_tools = TRUE;
 
 -- Upstream models — tracks what GitHub Copilot offers us
 CREATE TABLE IF NOT EXISTS upstream_models (

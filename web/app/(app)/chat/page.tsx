@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { Send, Sparkles, User, Loader2, ChevronDown, Terminal, Code2, Bug, Wand2, ImagePlus, X } from "lucide-react";
+import { Send, Sparkles, User, Loader2, ChevronDown, Terminal, Code2, Bug, Wand2, ImagePlus, X, FlaskConical } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/components/session-provider";
@@ -25,7 +26,8 @@ interface ModelInfo {
   version: string;
 }
 
-const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL ?? "http://localhost:3200";const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "";
+const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL ?? "http://localhost:3200";
+const SESSION_TOKEN_KEY = "wingman_session_token";
 
 const SUGGESTIONS: Array<{ icon: typeof Code2; label: string; prompt: string; kbd: string }> = [
   { icon: Code2, label: "Explain quantum computing", prompt: "Explain quantum computing", kbd: "⌘1" },
@@ -169,9 +171,14 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
     try {
+      const sessionToken =
+        typeof window !== "undefined" ? localStorage.getItem(SESSION_TOKEN_KEY) ?? "" : "";
       const res = await fetch(`${PROXY_URL}/api/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Api-Key": API_KEY },
+        headers: {
+          "Content-Type": "application/json",
+          "x-session-token": sessionToken,
+        },
         body: JSON.stringify({ sessionKey: activeSessionKey, message: content || "What is in this image?", model: selectedModel, stream: true, images }),
       });
 
@@ -275,7 +282,7 @@ export default function ChatPage() {
       {/* Header — defensive safe-area padding so the Dynamic Island / iOS
           status bar never eats the title or model picker even when running in
           a regular Safari tab (outside the installed PWA shell). */}
-      <header className="pt-[max(env(safe-area-inset-top),0.75rem)] border-b border-border/70 flex items-center px-3 sm:px-6 shrink-0 justify-between gap-2 bg-background/70 backdrop-blur-xl relative z-10 min-h-14">
+      <header className="pt-[max(calc(env(safe-area-inset-top)+1.125rem),2rem)] border-b border-border/70 flex items-center px-3 sm:px-6 shrink-0 justify-between gap-2 bg-background/70 backdrop-blur-xl relative z-10 min-h-14">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <MobileNavTrigger label="Open chat history" />
           <div className="flex items-center gap-2 min-w-0">
@@ -291,8 +298,23 @@ export default function ChatPage() {
           </span>
         </div>
 
-        {/* Model picker */}
-        <div className="relative shrink-0" ref={modelPickerRef}>
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Dev-only matrix link — Next.js inlines process.env.NODE_ENV at
+              build time, so production builds tree-shake this away. */}
+          {process.env.NODE_ENV === "development" && (
+            <Link
+              href="/dev/matrix"
+              target="_blank"
+              rel="noopener"
+              title="Open viewport diagnostic matrix (dev only)"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+            >
+              <FlaskConical className="w-4 h-4" />
+            </Link>
+          )}
+
+          {/* Model picker */}
+          <div className="relative" ref={modelPickerRef}>
           <button
             onClick={() => setShowModelPicker(!showModelPicker)}
             className="flex items-center gap-1.5 sm:gap-2 pl-2 sm:pl-2.5 pr-1.5 py-1.5 -mr-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors max-w-[55vw] sm:max-w-none"
@@ -329,6 +351,7 @@ export default function ChatPage() {
               ))}
             </div>
           )}
+          </div>
         </div>
       </header>
 
@@ -405,6 +428,22 @@ export default function ChatPage() {
                   </button>
                 ))}
               </div>
+
+              {/* Dev-only matrix link — full-width below the suggestion grid
+                  so it's easy to tap on mobile. Next.js inlines NODE_ENV at
+                  build time, so production tree-shakes this away. */}
+              {process.env.NODE_ENV === "development" && (
+                <Link
+                  href="/dev/matrix"
+                  target="_blank"
+                  rel="noopener"
+                  className="w-full max-w-xl flex items-center justify-center gap-2 px-4 py-3.5 rounded-lg border border-dashed border-copilot-purple/40 bg-copilot-purple/5 text-copilot-purple hover:bg-copilot-purple/10 hover:border-copilot-purple/60 transition-colors mt-1"
+                >
+                  <FlaskConical className="w-4 h-4" />
+                  <span className="text-sm font-medium">Open viewport diagnostic matrix</span>
+                  <span className="font-mono text-[10px] tracking-wider opacity-60">DEV</span>
+                </Link>
+              )}
             </div>
           </div>
         ) : (
@@ -477,8 +516,12 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* Input area */}
-      <div className="border-t border-border/70 p-3 sm:p-4 shrink-0 bg-background/40 backdrop-blur-md relative z-10 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      {/* Input area — bottom padding takes the max of: the design minimum
+          (0.75rem), the OS-reported safe-area inset, and the measured
+          home-indicator zone (100lvh − 100svh). The third arg is the
+          fallback for iOS contexts where env(safe-area-inset-bottom)
+          under-reports — pwa-safezone documents this exact failure mode. */}
+      <div className="border-t border-border/70 p-3 sm:p-4 shrink-0 bg-background/40 backdrop-blur-md relative z-10 pb-[max(0.75rem,var(--sz-safe-bottom),calc(100lvh-100svh))]">
         <div className="max-w-3xl mx-auto">
           {/* Image preview strip */}
           {attachedImages.length > 0 && (

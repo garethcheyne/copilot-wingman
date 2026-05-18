@@ -112,6 +112,11 @@ export interface SessionSummary extends Session {
   apiKeyId: string | null;
   apiKeyName: string | null;
   apiKeyPrefix: string | null;
+  // Populated for stateless API-key conversations (synthetic rows). NULL for
+  // real UI chat_sessions rows.
+  endUser: string | null;
+  conversationId: string | null;
+  toolCalls: number;
 }
 
 export interface ListSessionsFilter {
@@ -121,71 +126,133 @@ export interface ListSessionsFilter {
 
 /**
  * List sessions with rolled-up stats — used by the admin Sessions page.
- * Joins `request_log` to surface which API key (if any) drove the session.
+ *
+ * Returns a single unified list:
+ *   • Real UI chat_sessions rows joined with their last API key (if any)
+ *   • Synthetic "API conversation" rows for stateless API-key traffic that
+ *     supplied an X-Wingman-Conversation header, grouped by
+ *     (api_key_id, conversation_id, end_user). Their `id` is a non-UUID
+ *     synthetic key `apikey:<keyid>:conv:<convid>` — the admin UI treats
+ *     these as read-only (no DB row to open or delete).
  */
 export async function listSessionsWithStats(
   limit = 100,
   filter: ListSessionsFilter = {}
 ): Promise<SessionSummary[]> {
-  const where: string[] = [];
-  const params: (number | string)[] = [limit];
+  const wantsUi = filter.source !== 'api_key';
+  const wantsApi = filter.source !== 'ui';
 
-  if (filter.source) {
-    params.push(filter.source);
-    where.push(`s.source = $${params.length}`);
+  const tasks: Promise<SessionSummary[]>[] = [];
+
+  if (wantsUi) {
+    const where: string[] = [];
+    const params: (number | string)[] = [limit];
+    if (filter.apiKeyId) {
+      params.push(filter.apiKeyId);
+      where.push(`k.id = $${params.length}`);
+    }
+    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
+    tasks.push(
+      pool.query<SessionSummary>(
+        `SELECT s.id,
+                s.session_key       AS "sessionKey",
+                s.system_prompt     AS "systemPrompt",
+                s.source,
+                s.created_at        AS "createdAt",
+                s.updated_at        AS "updatedAt",
+                COALESCE(m.cnt, 0)::int  AS "messageCount",
+                m.last_at           AS "lastMessageAt",
+                m.total_tokens      AS "totalTokens",
+                p.preview,
+                k.id                AS "apiKeyId",
+                k.name              AS "apiKeyName",
+                k.key_prefix        AS "apiKeyPrefix",
+                NULL::text          AS "endUser",
+                NULL::text          AS "conversationId",
+                0::int              AS "toolCalls"
+         FROM chat_sessions s
+         LEFT JOIN (
+           SELECT session_id,
+                  COUNT(*)::int AS cnt,
+                  MAX(created_at) AS last_at,
+                  SUM(token_count)::int AS total_tokens
+           FROM chat_messages
+           GROUP BY session_id
+         ) m ON m.session_id = s.id
+         LEFT JOIN LATERAL (
+           SELECT LEFT(content, 100) AS preview
+           FROM chat_messages
+           WHERE session_id = s.id AND role = 'user'
+           ORDER BY created_at ASC
+           LIMIT 1
+         ) p ON true
+         LEFT JOIN LATERAL (
+           SELECT ak.id, ak.name, ak.key_prefix
+           FROM request_log rl
+           JOIN api_keys ak ON ak.id = rl.api_key_id
+           WHERE rl.session_id = s.id
+           ORDER BY rl.created_at DESC
+           LIMIT 1
+         ) k ON true
+         ${whereClause}
+         ORDER BY s.updated_at DESC
+         LIMIT $1`,
+        params
+      ).then((r) => r.rows)
+    );
   }
-  if (filter.apiKeyId) {
-    params.push(filter.apiKeyId);
-    where.push(`k.id = $${params.length}`);
+
+  if (wantsApi) {
+    const where: string[] = [
+      `rl.source = 'api_key'`,
+      `rl.conversation_id IS NOT NULL`,
+    ];
+    const params: (number | string)[] = [limit];
+    if (filter.apiKeyId) {
+      params.push(filter.apiKeyId);
+      where.push(`rl.api_key_id = $${params.length}`);
+    }
+
+    tasks.push(
+      pool.query<SessionSummary>(
+        `SELECT
+            ('apikey:' || rl.api_key_id || ':conv:' || rl.conversation_id) AS id,
+            NULL::text                                  AS "sessionKey",
+            NULL::text                                  AS "systemPrompt",
+            'api_key'                                   AS source,
+            MIN(rl.created_at)                          AS "createdAt",
+            MAX(rl.created_at)                          AS "updatedAt",
+            COUNT(*)::int                               AS "messageCount",
+            MAX(rl.created_at)                          AS "lastMessageAt",
+            COALESCE(SUM(COALESCE(rl.prompt_tokens, 0) + COALESCE(rl.completion_tokens, 0)), 0)::int AS "totalTokens",
+            ('Conversation ' || rl.conversation_id)     AS preview,
+            rl.api_key_id                               AS "apiKeyId",
+            ak.name                                     AS "apiKeyName",
+            ak.key_prefix                               AS "apiKeyPrefix",
+            rl.end_user                                 AS "endUser",
+            rl.conversation_id                          AS "conversationId",
+            COALESCE(SUM(rl.tool_calls_count), 0)::int  AS "toolCalls"
+         FROM request_log rl
+         JOIN api_keys ak ON ak.id = rl.api_key_id
+         WHERE ${where.join(' AND ')}
+         GROUP BY rl.api_key_id, rl.conversation_id, rl.end_user, ak.name, ak.key_prefix
+         ORDER BY MAX(rl.created_at) DESC
+         LIMIT $1`,
+        params
+      ).then((r) => r.rows)
+    );
   }
 
-  const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
-
-  const result = await pool.query<SessionSummary>(
-    `SELECT s.id,
-            s.session_key       AS "sessionKey",
-            s.system_prompt     AS "systemPrompt",
-            s.source,
-            s.created_at        AS "createdAt",
-            s.updated_at        AS "updatedAt",
-            COALESCE(m.cnt, 0)::int  AS "messageCount",
-            m.last_at           AS "lastMessageAt",
-            m.total_tokens      AS "totalTokens",
-            p.preview,
-            k.id                AS "apiKeyId",
-            k.name              AS "apiKeyName",
-            k.key_prefix        AS "apiKeyPrefix"
-     FROM chat_sessions s
-     LEFT JOIN (
-       SELECT session_id,
-              COUNT(*)::int AS cnt,
-              MAX(created_at) AS last_at,
-              SUM(token_count)::int AS total_tokens
-       FROM chat_messages
-       GROUP BY session_id
-     ) m ON m.session_id = s.id
-     LEFT JOIN LATERAL (
-       SELECT LEFT(content, 100) AS preview
-       FROM chat_messages
-       WHERE session_id = s.id AND role = 'user'
-       ORDER BY created_at ASC
-       LIMIT 1
-     ) p ON true
-     LEFT JOIN LATERAL (
-       SELECT ak.id, ak.name, ak.key_prefix
-       FROM request_log rl
-       JOIN api_keys ak ON ak.id = rl.api_key_id
-       WHERE rl.session_id = s.id
-       ORDER BY rl.created_at DESC
-       LIMIT 1
-     ) k ON true
-     ${whereClause}
-     ORDER BY s.updated_at DESC
-     LIMIT $1`,
-    params
-  );
-
-  return result.rows;
+  const results = await Promise.all(tasks);
+  const merged = results.flat();
+  // Sort by most-recent activity across both kinds, then trim to limit.
+  merged.sort((a, b) => {
+    const ta = new Date(a.updatedAt ?? 0).getTime();
+    const tb = new Date(b.updatedAt ?? 0).getTime();
+    return tb - ta;
+  });
+  return merged.slice(0, limit);
 }
 
 /**

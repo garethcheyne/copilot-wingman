@@ -43,6 +43,7 @@ interface Model {
     supports?: {
       streaming?: boolean;
       tool_calls?: boolean;
+      parallel_tool_calls?: boolean;
       vision?: boolean;
       structured_outputs?: boolean;
       thinking?: boolean;
@@ -495,9 +496,11 @@ function ModelCard({
             </CapChip>
           )}
           {caps?.supports?.vision && <CapChip>Vision</CapChip>}
-          {caps?.supports?.tool_calls && <CapChip>Tools</CapChip>}
+          {caps?.supports?.tool_calls && <CapChip title="Copilot accepts tool/function calls on this model">Tools</CapChip>}
+          {caps?.supports?.parallel_tool_calls && <CapChip title="Copilot can return multiple tool calls per turn">Parallel Tools</CapChip>}
           {caps?.supports?.structured_outputs && <CapChip>Structured</CapChip>}
           {caps?.supports?.streaming && <CapChip>Stream</CapChip>}
+          {caps?.supports?.thinking && <CapChip title="Model exposes adaptive thinking / reasoning">Thinking</CapChip>}
         </div>
 
         {model.supported_endpoints && model.supported_endpoints.length > 0 && (
@@ -543,9 +546,12 @@ function ModelCard({
   );
 }
 
-function CapChip({ children }: { children: React.ReactNode }) {
+function CapChip({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
-    <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-secondary/60 border border-border/60 font-mono text-[10px] tracking-wider text-muted-foreground">
+    <span
+      title={title}
+      className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-secondary/60 border border-border/60 font-mono text-[10px] tracking-wider text-muted-foreground"
+    >
       {children}
     </span>
   );

@@ -7,7 +7,6 @@ services:
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_PROXY_URL=${NEXT_PUBLIC_PROXY_URL:-http://localhost:3200}
-        - NEXT_PUBLIC_API_KEY=${INTERNAL_API_KEY}
     container_name: wingman-web
     ports:
       - "${WEB_PORT:-3000}:3000"
@@ -26,7 +25,7 @@ services:
       - "${PROXY_PORT:-3200}:3200"
     environment:
       - PROXY_PORT=3200
-      - DATABASE_URL=postgresql://wingman:password@postgres:5432/wingman
+      - DATABASE_URL=postgresql://wingman:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/wingman
       - REDIS_URL=redis://redis:6379
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -44,7 +43,7 @@ services:
     container_name: wingman-postgres
     environment:
       POSTGRES_USER: wingman
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: wingman
     volumes:
       - wingman-pg-data:/var/lib/postgresql/data

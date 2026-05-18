@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import crypto from 'crypto';
 import { pool } from '../db/client.js';
+import {
+  createSession,
+  lookupSessionByRawToken,
+  deleteSessionByRawToken,
+  hashToken,
+} from '../services/sessions.js';
 
 export const authRouter = Router();
-
-const SESSION_DURATION_DAYS = 30;
 
 /**
  * GET /api/auth/status
@@ -22,15 +25,7 @@ authRouter.get('/status', async (req: Request, res: Response): Promise<void> => 
     let user = null;
 
     if (token) {
-      const result = await pool.query(
-        `SELECT u.id, u.username, u.display_name, u.role
-         FROM user_sessions s JOIN users u ON s.user_id = u.id
-         WHERE s.token = $1 AND s.expires_at > NOW()`,
-        [token]
-      );
-      if (result.rows.length > 0) {
-        user = result.rows[0];
-      }
+      user = await lookupSessionByRawToken(token);
     }
 
     res.json({ needsSetup, user });
@@ -71,15 +66,10 @@ authRouter.post('/setup', async (req: Request, res: Response): Promise<void> => 
       [username.trim(), passwordHash, displayName?.trim() || username.trim()]
     );
 
-    // Auto-login after setup
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000);
-    await pool.query(
-      `INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)`,
-      [result.rows[0].id, token, expiresAt]
-    );
+    // Auto-login after setup — only the hash is stored; client gets the raw token.
+    const { rawToken } = await createSession(result.rows[0].id);
 
-    res.json({ user: result.rows[0], token });
+    res.json({ user: result.rows[0], token: rawToken });
   } catch (err: any) {
     if (err.code === '23505') {
       res.status(409).json({ error: 'Username already exists' });
@@ -121,16 +111,11 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000);
-    await pool.query(
-      `INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)`,
-      [user.id, token, expiresAt]
-    );
+    const { rawToken } = await createSession(user.id);
 
     res.json({
       user: { id: user.id, username: user.username, display_name: user.display_name, role: user.role },
-      token,
+      token: rawToken,
     });
   } catch (err) {
     console.error('[auth] login error:', err);
@@ -150,12 +135,8 @@ authRouter.post('/change-password', async (req: Request, res: Response): Promise
       return;
     }
 
-    const session = await pool.query(
-      `SELECT u.id, u.password_hash FROM user_sessions s JOIN users u ON s.user_id = u.id
-       WHERE s.token = $1 AND s.expires_at > NOW()`,
-      [token]
-    );
-    if (session.rows.length === 0) {
+    const sessionUser = await lookupSessionByRawToken(token);
+    if (!sessionUser) {
       res.status(401).json({ error: 'Invalid or expired session' });
       return;
     }
@@ -172,15 +153,27 @@ authRouter.post('/change-password', async (req: Request, res: Response): Promise
       return;
     }
 
-    const user = session.rows[0];
-    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    const pwRow = await pool.query('SELECT password_hash FROM users WHERE id = $1', [sessionUser.id]);
+    if (pwRow.rows.length === 0) {
+      res.status(401).json({ error: 'Invalid or expired session' });
+      return;
+    }
+
+    const valid = await bcrypt.compare(currentPassword, pwRow.rows[0].password_hash);
     if (!valid) {
       res.status(403).json({ error: 'Current password is incorrect' });
       return;
     }
 
     const newHash = await bcrypt.hash(newPassword, 12);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, sessionUser.id]);
+
+    // Invalidate every existing session for this user except the current one —
+    // a password change should log everyone else out.
+    await pool.query(
+      'DELETE FROM user_sessions WHERE user_id = $1 AND token <> $2',
+      [sessionUser.id, hashToken(token)],
+    );
 
     res.json({ ok: true });
   } catch (err) {
@@ -196,9 +189,7 @@ authRouter.post('/change-password', async (req: Request, res: Response): Promise
 authRouter.post('/logout', async (req: Request, res: Response): Promise<void> => {
   try {
     const token = req.headers['x-session-token'] as string | undefined;
-    if (token) {
-      await pool.query('DELETE FROM user_sessions WHERE token = $1', [token]);
-    }
+    await deleteSessionByRawToken(token ?? '');
     res.json({ ok: true });
   } catch (err) {
     console.error('[auth] logout error:', err);

@@ -2,6 +2,11 @@ import { pool } from '../db/client.js';
 
 export type UsageWindow = '24h' | '7d' | '30d';
 
+export interface ToolUsage {
+  name: string;
+  count: number;
+}
+
 export interface LogRequestInput {
   sessionId: string | null;
   apiKeyId?: string | null;
@@ -12,14 +17,24 @@ export interface LogRequestInput {
   latencyMs: number | null;
   status: 'success' | 'error';
   errorMessage?: string | null;
+  // Multi-tenant attribution supplied by the calling app (optional).
+  endUser?: string | null;
+  conversationId?: string | null;
+  // Tool-call telemetry derived from the upstream response (optional).
+  hadTools?: boolean;
+  toolCallsCount?: number;
+  toolsUsed?: ToolUsage[] | null;
 }
 
 export async function logRequest(input: LogRequestInput): Promise<void> {
   try {
     await pool.query(
       `INSERT INTO request_log
-         (session_id, api_key_id, source, model, prompt_tokens, completion_tokens, latency_ms, status, error_message)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+         (session_id, api_key_id, source, model,
+          prompt_tokens, completion_tokens, latency_ms, status, error_message,
+          end_user, conversation_id,
+          tool_calls_count, tools_used, had_tools)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         input.sessionId,
         input.apiKeyId ?? null,
@@ -30,6 +45,11 @@ export async function logRequest(input: LogRequestInput): Promise<void> {
         input.latencyMs,
         input.status,
         input.errorMessage ?? null,
+        input.endUser ?? null,
+        input.conversationId ?? null,
+        input.toolCallsCount ?? 0,
+        input.toolsUsed && input.toolsUsed.length > 0 ? JSON.stringify(input.toolsUsed) : null,
+        input.hadTools ?? false,
       ]
     );
   } catch (err) {
@@ -63,6 +83,8 @@ export interface UsageSummary {
     avgLatencyMs: number | null;
     p50LatencyMs: number | null;
     p99LatencyMs: number | null;
+    toolOfferedRequests: number;
+    toolCalls: number;
   };
   timeSeries: Array<{
     bucket: string;
@@ -85,13 +107,20 @@ export interface UsageSummary {
     promptTokens: number;
     completionTokens: number;
   }>;
+  byTool: Array<{
+    name: string;
+    calls: number;
+    requests: number;
+  }>;
 }
 
 export async function getUsageSummary(window: UsageWindow): Promise<UsageSummary> {
   const interval = windowInterval(window);
   const bucket = bucketSize(window);
+  // generate_series wants a step matching the bucket size.
+  const step = bucket === 'hour' ? '1 hour' : '1 day';
 
-  const [totalsRes, seriesRes, modelRes, sourceRes] = await Promise.all([
+  const [totalsRes, seriesRes, modelRes, sourceRes, toolRes] = await Promise.all([
     pool.query<{
       requests: string;
       success_requests: string;
@@ -101,6 +130,8 @@ export async function getUsageSummary(window: UsageWindow): Promise<UsageSummary
       avg_latency_ms: string | null;
       p50_latency_ms: string | null;
       p99_latency_ms: string | null;
+      tool_offered_requests: string;
+      tool_calls: string;
     }>(
       `SELECT
           COUNT(*)::text                                                    AS requests,
@@ -110,10 +141,14 @@ export async function getUsageSummary(window: UsageWindow): Promise<UsageSummary
           COALESCE(SUM(completion_tokens), 0)::text                         AS completion_tokens,
           AVG(latency_ms)::text                                             AS avg_latency_ms,
           PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms)::text     AS p50_latency_ms,
-          PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY latency_ms)::text    AS p99_latency_ms
+          PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY latency_ms)::text    AS p99_latency_ms,
+          COUNT(*) FILTER (WHERE had_tools)::text                           AS tool_offered_requests,
+          COALESCE(SUM(tool_calls_count), 0)::text                          AS tool_calls
        FROM request_log
        WHERE created_at >= NOW() - INTERVAL '${interval}'`
     ),
+    // Generate a continuous bucket axis so the chart shows a proper timeline
+    // even when activity is sparse — empty buckets render as zero-height bars.
     pool.query<{
       bucket: string;
       requests: string;
@@ -121,16 +156,25 @@ export async function getUsageSummary(window: UsageWindow): Promise<UsageSummary
       completion_tokens: string | null;
       error_count: string;
     }>(
-      `SELECT
-          DATE_TRUNC('${bucket}', created_at) AS bucket,
-          COUNT(*)::text                                          AS requests,
-          COALESCE(SUM(prompt_tokens), 0)::text                   AS prompt_tokens,
-          COALESCE(SUM(completion_tokens), 0)::text               AS completion_tokens,
-          COUNT(*) FILTER (WHERE status = 'error')::text          AS error_count
-       FROM request_log
-       WHERE created_at >= NOW() - INTERVAL '${interval}'
-       GROUP BY bucket
-       ORDER BY bucket ASC`
+      `WITH buckets AS (
+         SELECT generate_series(
+           DATE_TRUNC('${bucket}', NOW() - INTERVAL '${interval}'),
+           DATE_TRUNC('${bucket}', NOW()),
+           INTERVAL '${step}'
+         ) AS bucket
+       )
+       SELECT
+          b.bucket                                                        AS bucket,
+          COUNT(rl.id)::text                                              AS requests,
+          COALESCE(SUM(rl.prompt_tokens), 0)::text                        AS prompt_tokens,
+          COALESCE(SUM(rl.completion_tokens), 0)::text                    AS completion_tokens,
+          COUNT(*) FILTER (WHERE rl.status = 'error')::text               AS error_count
+       FROM buckets b
+       LEFT JOIN request_log rl
+              ON DATE_TRUNC('${bucket}', rl.created_at) = b.bucket
+             AND rl.created_at >= NOW() - INTERVAL '${interval}'
+       GROUP BY b.bucket
+       ORDER BY b.bucket ASC`
     ),
     pool.query<{
       model: string | null;
@@ -169,6 +213,24 @@ export async function getUsageSummary(window: UsageWindow): Promise<UsageSummary
        GROUP BY r.source, ak.name
        ORDER BY requests DESC`
     ),
+    // Tool-name histogram from the JSONB tools_used array.
+    pool.query<{
+      name: string;
+      calls: string;
+      requests: string;
+    }>(
+      `SELECT
+          (t->>'name')                  AS name,
+          SUM((t->>'count')::int)::text AS calls,
+          COUNT(DISTINCT rl.id)::text   AS requests
+       FROM request_log rl,
+            LATERAL jsonb_array_elements(COALESCE(rl.tools_used, '[]'::jsonb)) AS t
+       WHERE rl.created_at >= NOW() - INTERVAL '${interval}'
+         AND rl.tools_used IS NOT NULL
+       GROUP BY name
+       ORDER BY calls DESC
+       LIMIT 50`
+    ),
   ]);
 
   const t = totalsRes.rows[0];
@@ -187,6 +249,8 @@ export async function getUsageSummary(window: UsageWindow): Promise<UsageSummary
       avgLatencyMs: numOrNull(t?.avg_latency_ms ?? null),
       p50LatencyMs: numOrNull(t?.p50_latency_ms ?? null),
       p99LatencyMs: numOrNull(t?.p99_latency_ms ?? null),
+      toolOfferedRequests: num(t?.tool_offered_requests ?? '0'),
+      toolCalls: num(t?.tool_calls ?? '0'),
     },
     timeSeries: seriesRes.rows.map((r) => ({
       bucket: r.bucket,
@@ -208,6 +272,11 @@ export async function getUsageSummary(window: UsageWindow): Promise<UsageSummary
       requests: num(r.requests),
       promptTokens: num(r.prompt_tokens),
       completionTokens: num(r.completion_tokens),
+    })),
+    byTool: toolRes.rows.map((r) => ({
+      name: r.name,
+      calls: num(r.calls),
+      requests: num(r.requests),
     })),
   };
 }

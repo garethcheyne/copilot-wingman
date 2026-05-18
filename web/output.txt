@@ -1,0 +1,124 @@
+
+> wingman-web@0.1.0 dev
+> next dev --turbopack --port 3410
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3410
+- Network:       http://192.168.0.109:3410
+- Environments: .env.local
+✓ Ready in 297ms
+
+⨯ ./app/dev/matrix/page.tsx:11:1
+Module not found: Can't resolve 'pwa-safezone'
+  [90m 9 |[0m [90m */[0m
+  [90m10 |[0m
+[31m[1m>[0m [90m11 |[0m [36mimport[0m { [33mViewportMatrix[0m } [36mfrom[0m [32m"pwa-safezone"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m12 |[0m
+  [90m13 |[0m [36mconst[0m [33mMATRIX_VERSION[0m = [32m"v9-pkg"[0m;
+  [90m14 |[0m
+
+
+
+Import traces:
+  Client Component Browser:
+    ./app/dev/matrix/page.tsx [Client Component Browser]
+    ./app/dev/matrix/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dev/matrix/page.tsx [Client Component SSR]
+    ./app/dev/matrix/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+ GET /dev/matrix 500 in 156ms (next.js: 79ms, application-code: 77ms)
+[browser] Uncaught Error: ./app/dev/matrix/page.tsx:11:1
+Module not found: Can't resolve 'pwa-safezone'
+   9 |  */
+  10 |
+> 11 | import { ViewportMatrix } from "pwa-safezone";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  12 |
+  13 | const MATRIX_VERSION = "v9-pkg";
+  14 |
+
+
+
+Import traces:
+  Client Component Browser:
+    ./app/dev/matrix/page.tsx [Client Component Browser]
+    ./app/dev/matrix/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dev/matrix/page.tsx [Client Component SSR]
+    ./app/dev/matrix/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+    at <unknown> (Error: ./app/dev/matrix/page.tsx:11:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+    at <unknown> (Error: (./app/dev/matrix/page.tsx:11:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+[browser] ./app/dev/matrix/page.tsx:11:1
+Module not found: Can't resolve 'pwa-safezone'
+   9 |  */
+  10 |
+> 11 | import { ViewportMatrix } from "pwa-safezone";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  12 |
+  13 | const MATRIX_VERSION = "v9-pkg";
+  14 |
+
+Import traces:
+  Client Component Browser:
+    ./app/dev/matrix/page.tsx [Client Component Browser]
+    ./app/dev/matrix/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dev/matrix/page.tsx [Client Component SSR]
+    ./app/dev/matrix/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./app/dev/matrix/page.tsx:11:1
+Module not found: Can't resolve 'pwa-safezone'
+   9 |  */
+  10 |
+> 11 | import { ViewportMatrix } from "pwa-safezone";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  12 |
+  13 | const MATRIX_VERSION = "v9-pkg";
+  14 |
+
+Import traces:
+  Client Component Browser:
+    ./app/dev/matrix/page.tsx [Client Component Browser]
+    ./app/dev/matrix/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dev/matrix/page.tsx [Client Component SSR]
+    ./app/dev/matrix/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./app/dev/matrix/page.tsx:11:1
+Module not found: Can't resolve 'pwa-safezone'
+   9 |  */
+  10 |
+> 11 | import { ViewportMatrix } from "pwa-safezone";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  12 |
+  13 | const MATRIX_VERSION = "v9-pkg";
+  14 |
+
+Import traces:
+  Client Component Browser:
+    ./app/dev/matrix/page.tsx [Client Component Browser]
+    ./app/dev/matrix/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dev/matrix/page.tsx [Client Component SSR]
+    ./app/dev/matrix/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found 
+[?25h
