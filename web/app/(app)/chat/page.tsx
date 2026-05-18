@@ -186,7 +186,14 @@ export default function ChatPage() {
       });
 
       if (!res.ok) {
-        const errText = await res.text();
+        let errText = "";
+        let errJson: any = null;
+        try {
+          errJson = await res.json();
+          errText = errJson?.error || JSON.stringify(errJson);
+        } catch {
+          errText = await res.text();
+        }
         if (res.status === 429) {
           // Detect premium model quota error (simple heuristic: look for 'premium' or 'model' in error text)
           const isPremiumModel = /premium|model|allowance|gpt-4|opus|claude|gemini/i.test(errText) && selectedModel !== "gpt-3.5-turbo" && selectedModel !== "gpt-3.5";
