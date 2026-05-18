@@ -178,11 +178,22 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       });
     }
   } catch (err) {
-    const errorMessage = (err as Error).message;
+    let errorMessage = (err as any)?.message || String(err);
+    let status = 500;
+    // Try to extract status code from error message or error object
+    if ((err as any)?.status) {
+      status = (err as any).status;
+    } else if (typeof errorMessage === 'string') {
+      const match = errorMessage.match(/(\d{3})/);
+      if (match) {
+        const code = parseInt(match[1], 10);
+        if (code === 429) status = 429;
+      }
+    }
     console.error('[chat] Error:', errorMessage);
 
     if (!res.headersSent) {
-      res.status(500).json({ error: errorMessage });
+      res.status(status).json({ error: errorMessage });
     }
 
     await logRequest({
