@@ -29,7 +29,8 @@ Wingman gives you a private, self-hosted chat interface that routes through GitH
 - **Full model catalog** — GPT-4o, Claude Opus/Sonnet, Gemini, and every model GitHub Copilot supports
 - **Streaming responses** — real-time token streaming with markdown rendering
 - **Markdown rendering** — headings, code blocks with syntax highlighting & copy button, tables, lists, blockquotes
-- **Image support** — paste, drag-drop, or upload images directly into chat
+- **Vision support** — paste, drag-drop, or upload images and PDFs directly into chat (PDFs rendered to per-page images automatically)
+- **API PDF support** — API consumers can send `data:application/pdf;base64,...` in the `images` array; the proxy renders pages server-side
 - **Session persistence** — conversations stored in PostgreSQL with sidebar navigation
 - **GitHub Device OAuth** — authenticate with GitHub the same way VS Code does
 - **Local auth** — password-protected admin accounts with bcrypt hashing
@@ -95,6 +96,15 @@ Open [http://localhost:3000](http://localhost:3000) and follow the guided setup:
 1. **Create account** — set your admin username and password
 2. **Connect GitHub** — authenticate via GitHub Device OAuth flow
 3. **Start chatting** — you're ready to go
+
+## Part of the Copilot Wingman Family
+
+This project is part of the **Copilot Wingman** family — a suite of tools that extend GitHub Copilot beyond the editor.
+
+| Project | Description |
+|---------|-------------|
+| **Copilot Wingman** (this repo) | Self-hosted AI proxy & chat UI powered by your GitHub Copilot subscription |
+| [Copilot Wingman Project Tracking](https://github.com/garethcheyne/copilot-wingman-project-tracking) | VS Code extension for per-user, per-project AI token usage tracking and cost attribution |
 
 ## Upgrading
 
