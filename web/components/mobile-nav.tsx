@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 
@@ -38,8 +38,10 @@ export function MobileNavProvider({ children }: { children: React.ReactNode }) {
     }
   }, [open]);
 
+  const value = useMemo(() => ({ open, setOpen }), [open]);
+
   return (
-    <MobileNavContext.Provider value={{ open, setOpen }}>
+    <MobileNavContext.Provider value={value}>
       {children}
     </MobileNavContext.Provider>
   );

@@ -8,14 +8,6 @@
 
 export {
   SafeAreaProvider,
-  SafeAreaView,
   DynamicIslandZone,
-  HomeIndicatorZone,
-  SafeShell,
   useSafeAreaInsets,
-  useSafeAreaFrame,
-  useViewportSnapshot,
-  useDisplayMode,
-  useIsStandalone,
-  useIsSecureContext,
 } from "pwa-safezone";

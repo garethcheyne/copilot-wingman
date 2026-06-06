@@ -4,7 +4,7 @@ Official client libraries for the Wingman API.
 
 | Language | Path | Status |
 |---|---|---|
-| Node / TypeScript | [`sdk/node/`](node/) | v0.1 |
+| Node / TypeScript | [`sdk/node/`](node/) | v0.2 (dev only, not published) |
 | Python | [`sdk/python/`](python/) | planned |
 | .NET (C#) | [`sdk/dotnet/`](dotnet/) | planned |
 
@@ -23,7 +23,7 @@ client.chat.stream({ sessionKey, message, model?, systemPrompt? })
 
 Architecture borrowed (re-implemented, not copied) from the
 [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript)
-(MIT). See [`../ANTHROPIC-SDK.md`](../ANTHROPIC-SDK.md) for the full study.
+(MIT).
 
 Key shared decisions:
 
@@ -35,7 +35,7 @@ Key shared decisions:
 - **Base URL**: required; pass your Wingman proxy host explicitly (e.g. `https://wingman.example.com` or `http://localhost:3200`).
 - **Multi-turn**: handled server-side via `sessionKey`; the SDK does not maintain conversation state.
 
-## Endpoints covered (v0.1)
+## Endpoints covered (v0.2)
 
 | Method | Path | SDK |
 |---|---|---|

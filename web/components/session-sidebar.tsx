@@ -1,14 +1,24 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Settings, Trash2, MessageSquare, LogOut } from "lucide-react";
+import { Plus, Settings, Trash2, MessageSquare, LogOut, Check } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useSession } from "@/components/session-provider";
 import { useMobileNav } from "@/components/mobile-nav";
 import { useAuth } from "@/components/auth-provider";
-import { APP_TAGLINE, APP_VERSION } from "@/lib/version";
+import { useConnection } from "@/components/connection-provider";
+import { APP_TAGLINE } from "@/lib/version";
+
+// Maps live connection health to the footer status pill.
+const CONNECTION_STATUS: Record<string, { label: string; dot: string; text: string }> = {
+  healthy: { label: "Proxy · Online", dot: "bg-copilot-green", text: "text-copilot-green" },
+  loading: { label: "Proxy · …", dot: "bg-muted-foreground", text: "text-muted-foreground" },
+  expired: { label: "Proxy · Auth", dot: "bg-yellow-500", text: "text-yellow-500" },
+  disconnected: { label: "Proxy · Offline", dot: "bg-destructive", text: "text-destructive" },
+};
 
 function timeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -24,6 +34,11 @@ function timeAgo(date: string): string {
 function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
   const { sessions, activeSessionKey, createNewSession, switchSession, deleteSession } = useSession();
   const { logout } = useAuth();
+  const { health } = useConnection();
+  // Two-step delete: first click arms the row, second click within the window
+  // commits — guards against accidental, irreversible deletion.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const status = CONNECTION_STATUS[health] ?? CONNECTION_STATUS.disconnected;
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
@@ -129,14 +144,25 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
                   </div>
                   <button
                     type="button"
-                    title="Delete session"
+                    aria-label={confirmId === s.id ? "Confirm delete session" : "Delete session"}
+                    title={confirmId === s.id ? "Click again to confirm" : "Delete session"}
                     onClick={(e) => {
                       e.stopPropagation();
-                      deleteSession(s.id);
+                      if (confirmId === s.id) {
+                        deleteSession(s.id);
+                        setConfirmId(null);
+                      } else {
+                        setConfirmId(s.id);
+                      }
                     }}
-                    className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-2 -m-1 rounded hover:bg-destructive/20 hover:text-destructive"
+                    onBlur={() => setConfirmId((id) => (id === s.id ? null : id))}
+                    className={`transition-opacity p-2 -m-1 rounded ${
+                      confirmId === s.id
+                        ? "opacity-100 bg-destructive/20 text-destructive"
+                        : "opacity-100 lg:opacity-0 lg:group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive"
+                    }`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    {confirmId === s.id ? <Check className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               );
@@ -153,11 +179,11 @@ function SessionSidebarBody({ onItemSelect }: { onItemSelect?: () => void }) {
       <div className="px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-2">
         <div className="flex items-center justify-between px-2 py-2 rounded-md bg-card/50 border border-border/50">
           <div className="flex items-center gap-2.5">
-            <span className="pulse-ring text-copilot-green">
-              <span className="bg-copilot-green" />
+            <span className={`pulse-ring ${status.text}`}>
+              <span className={status.dot} />
             </span>
             <span className="font-mono text-[10px] tracking-[0.18em] uppercase text-foreground/80">
-              Proxy · Online
+              {status.label}
             </span>
           </div>
         </div>
@@ -204,6 +230,7 @@ export function SessionSidebar() {
           side="left"
           className="w-72 max-w-[85vw] p-0 bg-sidebar/95 backdrop-blur-xl border-r border-border lg:hidden"
         >
+          <SheetTitle className="sr-only">Chat history</SheetTitle>
           <SessionSidebarBody onItemSelect={() => setOpen(false)} />
         </SheetContent>
       </Sheet>

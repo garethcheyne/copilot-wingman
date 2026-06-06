@@ -92,6 +92,15 @@ openApiRouter.get('/', (req: Request, res: Response): void => {
                       images: ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...'],
                     },
                   },
+                  pdf: {
+                    summary: 'With PDF attachment (server-side rendered)',
+                    value: {
+                      sessionKey: 'project-alpha-user-42',
+                      message: 'Summarise this document.',
+                      model: 'gpt-4o',
+                      images: ['data:application/pdf;base64,JVBERi0xLjcK...'],
+                    },
+                  },
                 },
               },
             },
@@ -256,7 +265,10 @@ openApiRouter.get('/', (req: Request, res: Response): void => {
             },
             images: {
               type: 'array',
-              description: 'Optional base64 data URLs attached to the user turn (vision-capable models only).',
+              description:
+                'Optional base64 data URLs attached to the user turn (vision-capable models only). ' +
+                'Supports image/* data URLs directly, and `data:application/pdf;base64,...` which the ' +
+                'server renders to per-page PNGs automatically (max 5 pages per PDF).',
               items: { type: 'string', format: 'data-url' },
               maxItems: 8,
             },

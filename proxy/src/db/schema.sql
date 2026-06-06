@@ -55,9 +55,12 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
 CREATE TABLE IF NOT EXISTS chat_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('system', 'user', 'assistant')),
-    content TEXT NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('system', 'user', 'assistant', 'tool')),
+    content TEXT,
     token_count INT,
+    tool_calls JSONB,
+    tool_call_id TEXT,
+    name TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

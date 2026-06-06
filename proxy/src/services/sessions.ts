@@ -17,11 +17,11 @@ export function hashToken(rawToken: string): string {
   return HASH_PREFIX + crypto.createHash('sha256').update(rawToken).digest('hex');
 }
 
-export function generateRawToken(): string {
+function generateRawToken(): string {
   return crypto.randomBytes(RAW_TOKEN_BYTES).toString('hex');
 }
 
-export function sessionDurationMs(): number {
+function sessionDurationMs(): number {
   return SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000;
 }
 

@@ -63,6 +63,35 @@ const models = await client.models.list();   // [{ id: "claude-sonnet-4.6", ... 
 const health = await client.health.check();  // { status: "healthy" }
 ```
 
+### Vision (images & PDFs)
+
+Pass base64 data URLs in the `images` array. The server accepts both image
+data URLs (`data:image/png;base64,...`) and PDF data URLs
+(`data:application/pdf;base64,...`). PDFs are rendered server-side to per-page
+PNG images automatically (max 5 pages per PDF).
+
+```ts
+import { readFileSync } from "fs";
+
+// Send an image
+const imgB64 = readFileSync("screenshot.png").toString("base64");
+const res = await client.chat.create({
+  sessionKey: "vision-demo",
+  message: "What's in this image?",
+  model: "gpt-4o",
+  images: [`data:image/png;base64,${imgB64}`],
+});
+
+// Send a PDF (server renders pages to images)
+const pdfB64 = readFileSync("document.pdf").toString("base64");
+const res2 = await client.chat.create({
+  sessionKey: "pdf-demo",
+  message: "Summarise this document.",
+  model: "gpt-4o",
+  images: [`data:application/pdf;base64,${pdfB64}`],
+});
+```
+
 Filter by capability:
 
 ```ts

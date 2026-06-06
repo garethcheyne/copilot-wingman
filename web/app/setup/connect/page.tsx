@@ -137,11 +137,15 @@ export default function SetupConnectPage() {
     poll(interval || 5);
   };
 
-  const copyCode = () => {
-    if (device) {
-      navigator.clipboard.writeText(device.userCode);
+  const copyCode = async () => {
+    if (!device) return;
+    try {
+      if (!navigator.clipboard?.writeText) return;
+      await navigator.clipboard.writeText(device.userCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard blocked (insecure context) — the code stays visible to copy.
     }
   };
 

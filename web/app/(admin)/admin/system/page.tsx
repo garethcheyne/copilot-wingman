@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   RefreshCcw,
   CheckCircle2,
@@ -33,6 +41,13 @@ export default function SystemPage() {
   const [upgrading, setUpgrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [upgradeMessage, setUpgradeMessage] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const upgradePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clear the post-upgrade poll on unmount.
+  useEffect(() => () => {
+    if (upgradePollRef.current) clearInterval(upgradePollRef.current);
+  }, []);
 
   const fetchVersion = useCallback(async () => {
     try {
@@ -53,23 +68,54 @@ export default function SystemPage() {
     fetchVersion();
   }, [fetchVersion]);
 
-  const handleUpgrade = async () => {
-    if (!confirm("This will pull the latest version and restart the containers. The app will be briefly unavailable. Continue?")) {
-      return;
-    }
+  const runUpgrade = async () => {
+    setConfirmOpen(false);
     try {
       setUpgrading(true);
       setUpgradeMessage(null);
+      setError(null);
       const res = await adminFetch("/api/admin/version/upgrade", { method: "POST" });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Upgrade failed (HTTP ${res.status})`);
+
       if (data.status === "up-to-date") {
         setUpgradeMessage("Already running the latest version.");
-      } else {
-        setUpgradeMessage(`Upgrading from v${data.from} to v${data.to}. The app will restart shortly...`);
+        setUpgrading(false);
+        return;
       }
+
+      setUpgradeMessage(`Upgrading from v${data.from} to v${data.to}. The app will restart shortly…`);
+
+      // Poll for the restart to land so the UI reflects the new version
+      // instead of leaving the user guessing. Bounded to ~2 minutes.
+      const target: string | undefined = data.to;
+      let attempts = 0;
+      if (upgradePollRef.current) clearInterval(upgradePollRef.current);
+      upgradePollRef.current = setInterval(async () => {
+        attempts++;
+        try {
+          const vr = await adminFetch("/api/admin/version");
+          if (vr.ok) {
+            const vd = await vr.json();
+            if (vd.current === target || vd.updateAvailable === false) {
+              if (upgradePollRef.current) clearInterval(upgradePollRef.current);
+              setInfo(vd);
+              setUpgradeMessage(`Upgraded to v${vd.current}.`);
+              setUpgrading(false);
+              return;
+            }
+          }
+        } catch {
+          // Containers are still restarting — keep waiting.
+        }
+        if (attempts >= 40) {
+          if (upgradePollRef.current) clearInterval(upgradePollRef.current);
+          setUpgrading(false);
+          setUpgradeMessage("Upgrade started. Refresh in a moment to confirm the new version.");
+        }
+      }, 3000);
     } catch (err) {
       setError((err as Error).message);
-    } finally {
       setUpgrading(false);
     }
   };
@@ -147,6 +193,8 @@ export default function SystemPage() {
                   href={info.latest.url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-label="View release on GitHub"
+                  title="View release on GitHub"
                   className="text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ExternalLink className="w-4 h-4" />
@@ -162,7 +210,7 @@ export default function SystemPage() {
 
               {/* Upgrade button */}
               <Button
-                onClick={handleUpgrade}
+                onClick={() => setConfirmOpen(true)}
                 disabled={upgrading}
                 className="w-full"
               >
@@ -192,7 +240,7 @@ export default function SystemPage() {
 
       {/* Upgrade status message */}
       {upgradeMessage && (
-        <Alert>
+        <Alert role="status" aria-live="polite">
           <AlertDescription>{upgradeMessage}</AlertDescription>
         </Alert>
       )}
@@ -220,6 +268,28 @@ export default function SystemPage() {
           </div>
         </div>
       )}
+
+      {/* Upgrade confirmation */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upgrade Wingman?</DialogTitle>
+            <DialogDescription>
+              This pulls the latest version and restarts the containers. The app
+              will be briefly unavailable.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={runUpgrade}>
+              <ArrowUpCircle className="w-4 h-4 mr-2" />
+              Upgrade now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

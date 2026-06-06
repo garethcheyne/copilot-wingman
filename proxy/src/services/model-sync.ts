@@ -18,7 +18,7 @@ import type { ModelEnrichment } from './llm-stats.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
-export interface UpstreamModel {
+interface UpstreamModel {
   id: string;
   name: string;
   vendor: string;
@@ -455,7 +455,7 @@ export async function getLastSyncTime(): Promise<Date | null> {
 }
 
 /** Check if the models table has any data (first run check) */
-export async function hasModels(): Promise<boolean> {
+async function hasModels(): Promise<boolean> {
   const res = await pool.query(`SELECT EXISTS(SELECT 1 FROM upstream_models) AS has`);
   return res.rows[0].has;
 }
@@ -504,7 +504,7 @@ export async function startModelSync(): Promise<void> {
 }
 
 /** Stop the background sync timer */
-export function stopModelSync(): void {
+function stopModelSync(): void {
   if (syncTimer) {
     clearInterval(syncTimer);
     syncTimer = null;

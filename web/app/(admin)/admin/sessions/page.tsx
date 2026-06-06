@@ -42,10 +42,13 @@ interface SessionSummary {
 
 interface MessageRow {
   id: string;
-  role: "system" | "user" | "assistant";
-  content: string;
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
   tokenCount: number | null;
   createdAt: string;
+  toolCalls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }> | null;
+  toolCallId?: string | null;
+  name?: string | null;
 }
 
 interface SessionDetail {
@@ -347,11 +350,14 @@ export default function SessionsPage() {
       ) : stats.count === 0 ? (
         <EmptyState filtered={sourceFilter !== "all" || apiKeyFilter !== "all"} />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-4">
-          {/* List */}
-          <div className="space-y-2">
+        <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-4 lg:items-start">
+          {/* List — sticky on desktop so a long list pins to the viewport and
+              scrolls inside its own box. The height is anchored to the viewport
+              (not a raw 70vh, which runs off the bottom once the header pushes
+              the list down the page and clips the last card). */}
+          <div className="space-y-2 lg:sticky lg:top-4">
             <p className="label-mono px-1">// Sessions</p>
-            <div className="space-y-2 max-h-[70vh] overflow-y-auto scroll-sleek pr-1">
+            <div className="space-y-2 overflow-y-auto scroll-sleek pr-1 pb-1 max-h-[60vh] lg:max-h-[calc(100vh-6rem)]">
               {(sessions ?? []).map((s) => (
                 <SessionRow
                   key={s.id}
@@ -654,6 +660,7 @@ function SessionThread({
 function MessageBlock({ message }: { message: MessageRow }) {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
+  const isTool = message.role === "tool";
   return (
     <div className="flex gap-3.5">
       <div className="shrink-0">
@@ -667,6 +674,10 @@ function MessageBlock({ message }: { message: MessageRow }) {
               <Sparkles className="w-3 h-3 text-copilot-purple" strokeWidth={2} />
             </div>
           </div>
+        ) : isTool ? (
+          <div className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+            <Wrench className="w-3 h-3 text-amber-600" />
+          </div>
         ) : (
           <div className="w-7 h-7 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center">
             <span className="font-mono text-[10px] text-accent">S</span>
@@ -676,7 +687,7 @@ function MessageBlock({ message }: { message: MessageRow }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-3 mb-1.5 flex-wrap">
           <p className="font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground/80">
-            // {message.role === "system" ? "System" : isUser ? "User" : "Assistant"}
+            // {message.role === "system" ? "System" : isUser ? "User" : isTool ? `Tool: ${message.name ?? "unknown"}` : "Assistant"}
           </p>
           {message.tokenCount !== null && (
             <span className="font-mono text-[9px] tracking-wider text-muted-foreground/60">
@@ -687,16 +698,40 @@ function MessageBlock({ message }: { message: MessageRow }) {
             {formatAbs(message.createdAt)}
           </span>
         </div>
+        {/* Tool calls made by assistant */}
+        {isAssistant && message.toolCalls && message.toolCalls.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {message.toolCalls.map((tc) => (
+              <span
+                key={tc.id}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 font-mono text-[10px] text-amber-700 dark:text-amber-400"
+              >
+                <Wrench className="w-2.5 h-2.5" />
+                {tc.function.name}
+              </span>
+            ))}
+          </div>
+        )}
         <div
           className={`text-sm break-words leading-relaxed px-4 py-3 rounded-lg border ${
             isUser
               ? "bg-primary/6 border-primary/20 border-l-2 border-l-primary whitespace-pre-wrap"
               : isAssistant
               ? "bg-card/60 border-border/70 border-l-2 border-l-copilot-purple"
+              : isTool
+              ? "bg-amber-500/5 border-amber-500/20 border-l-2 border-l-amber-500 font-mono text-xs whitespace-pre-wrap"
               : "bg-accent/8 border-accent/30 border-l-2 border-l-accent whitespace-pre-wrap"
           }`}
         >
-          {isAssistant ? <ChatMarkdown content={message.content} /> : message.content}
+          {isAssistant && message.content ? (
+            <ChatMarkdown content={message.content} />
+          ) : message.content ? (
+            message.content
+          ) : isAssistant && message.toolCalls ? (
+            <span className="text-muted-foreground/60 italic text-xs">Calling tools…</span>
+          ) : (
+            <span className="text-muted-foreground/60 italic text-xs">No content</span>
+          )}
         </div>
       </div>
     </div>

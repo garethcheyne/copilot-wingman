@@ -6,10 +6,8 @@ export function ServiceWorkerRegistrar() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
-    if (process.env.NODE_ENV !== "production" && !window.location.protocol.startsWith("https")) {
-      // In plain-http dev we still register so the file is exposed,
-      // but the browser will only honour push on https/localhost.
-    }
+    // Note: in plain-http dev we still register so the file is exposed, but the
+    // browser only honours push on https/localhost.
     const register = async () => {
       try {
         await navigator.serviceWorker.register("/sw.js", {

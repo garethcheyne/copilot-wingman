@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { getAuthStatus, login as apiLogin, logout as apiLogout, setup as apiSetup } from "@/lib/auth";
 import type { AuthUser } from "@/lib/auth";
 
@@ -39,34 +39,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkStatus();
   }, [checkStatus]);
 
-  const login = async (username: string, password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     const result = await apiLogin(username, password);
     localStorage.setItem(TOKEN_KEY, result.token);
     setUser(result.user);
     setNeedsSetup(false);
-  };
+  }, []);
 
-  const setup = async (username: string, password: string, displayName?: string) => {
+  const setup = useCallback(async (username: string, password: string, displayName?: string) => {
     const result = await apiSetup(username, password, displayName);
     localStorage.setItem(TOKEN_KEY, result.token);
     setUser(result.user);
     setNeedsSetup(false);
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) {
       await apiLogout(token);
       localStorage.removeItem(TOKEN_KEY);
     }
     setUser(null);
-  };
+  }, []);
 
-  return (
-    <AuthContext.Provider value={{ user, needsSetup, loading, login, setup, logout }}>
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextValue>(
+    () => ({ user, needsSetup, loading, login, setup, logout }),
+    [user, needsSetup, loading, login, setup, logout],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

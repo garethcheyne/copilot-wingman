@@ -1,9 +1,11 @@
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@10 --activate
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --config.confirmModulesPureness=false
 
 COPY . .
 
@@ -13,10 +15,10 @@ COPY . .
 ARG NEXT_PUBLIC_PROXY_URL=http://localhost:3200
 ENV NEXT_PUBLIC_PROXY_URL=$NEXT_PUBLIC_PROXY_URL
 
-RUN npm run build
+RUN pnpm run build
 
 # --- Production stage ---
-FROM node:22-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 

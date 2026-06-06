@@ -93,7 +93,7 @@ export default function ConnectionPage() {
 
       setOauthDevice(data);
       setOauthPolling(true);
-      startPolling(data.deviceCode, data.interval);
+      startPolling(data.deviceCode, data.interval, data.expiresIn);
     } catch {
       setStatus("error");
       setMessage("Cannot reach proxy. Is it running on port 3200?");
@@ -102,10 +102,22 @@ export default function ConnectionPage() {
     }
   };
 
-  const startPolling = (deviceCode: string, interval: number) => {
+  const startPolling = (deviceCode: string, interval: number, expiresIn: number) => {
     if (pollRef.current) clearInterval(pollRef.current);
 
+    // Stop polling once the device code expires rather than spinning forever.
+    const deadline = Date.now() + (expiresIn || 900) * 1000;
+
     pollRef.current = setInterval(async () => {
+      if (Date.now() >= deadline) {
+        clearInterval(pollRef.current!);
+        pollRef.current = null;
+        setOauthPolling(false);
+        setOauthDevice(null);
+        setStatus("error");
+        setMessage("The device code expired before authorization. Please start again.");
+        return;
+      }
       try {
         const res = await adminFetch("/api/admin/connection/oauth/poll", {
           method: "POST",
@@ -145,11 +157,16 @@ export default function ConnectionPage() {
     setOauthDevice(null);
   };
 
-  const copyCode = () => {
-    if (oauthDevice) {
-      navigator.clipboard.writeText(oauthDevice.userCode);
+  const copyCode = async () => {
+    if (!oauthDevice) return;
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
+      await navigator.clipboard.writeText(oauthDevice.userCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setStatus("error");
+      setMessage("Couldn't copy the code — please copy it manually.");
     }
   };
 
@@ -203,6 +220,10 @@ export default function ConnectionPage() {
         setConnection(null);
         setStatus("success");
         setMessage("Connection removed.");
+      } else {
+        const data = await res.json().catch(() => null);
+        setStatus("error");
+        setMessage(data?.error ?? `Couldn't remove connection (HTTP ${res.status}).`);
       }
     } catch {
       setStatus("error");
@@ -260,6 +281,8 @@ export default function ConnectionPage() {
       {/* Status banner */}
       {status !== "idle" && (
         <Alert
+          role="status"
+          aria-live="polite"
           className={`backdrop-blur-md ${
             status === "success"
               ? "border-copilot-green/40 bg-copilot-green/6 text-copilot-green"

@@ -51,6 +51,36 @@ client.models.list()    # [{"id": "claude-sonnet-4.6", ...}, ...]
 client.health.check()   # {"status": "healthy"}
 ```
 
+### Vision (images & PDFs)
+
+Pass base64 data URLs in the `images` parameter. The server accepts both image
+data URLs (`data:image/png;base64,...`) and PDF data URLs
+(`data:application/pdf;base64,...`). PDFs are rendered server-side to per-page
+PNG images automatically (max 5 pages per PDF).
+
+```python
+import base64
+from pathlib import Path
+
+# Send an image
+img_b64 = base64.b64encode(Path("screenshot.png").read_bytes()).decode()
+res = client.chat.create(
+    session_key="vision-demo",
+    message="What's in this image?",
+    model="gpt-4o",
+    images=[f"data:image/png;base64,{img_b64}"],
+)
+
+# Send a PDF (server renders pages to images)
+pdf_b64 = base64.b64encode(Path("document.pdf").read_bytes()).decode()
+res = client.chat.create(
+    session_key="pdf-demo",
+    message="Summarise this document.",
+    model="gpt-4o",
+    images=[f"data:application/pdf;base64,{pdf_b64}"],
+)
+```
+
 ### Errors
 
 ```python

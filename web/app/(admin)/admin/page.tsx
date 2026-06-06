@@ -123,7 +123,7 @@ export default function AdminDashboard() {
           {account?.user ? (
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border/70 bg-background/70 backdrop-blur-md">
               <Avatar className="h-10 w-10 ring-1 ring-copilot-purple/40">
-                <AvatarImage src={account.user.avatar_url} />
+                <AvatarImage src={account.user.avatar_url} alt={account.user.login ? `@${account.user.login}` : account.user.name ?? "Account avatar"} />
                 <AvatarFallback>{account.user.name?.[0] ?? "?"}</AvatarFallback>
               </Avatar>
               <div className="text-right">
@@ -343,7 +343,8 @@ function QuotaBar({
 }: {
   label: string;
   quota: QuotaSnapshot;
-  accent: keyof typeof accentClasses;
+  // Only these three bar colors are actually rendered below.
+  accent: "primary" | "accent" | "purple";
 }) {
   if (quota.unlimited) {
     return (

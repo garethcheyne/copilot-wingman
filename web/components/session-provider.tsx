@@ -1,13 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { adminFetch } from "@/lib/admin-api";
 import { randomUUID } from "@/lib/utils";
 
-const PROXY_URL = process.env.NEXT_PUBLIC_PROXY_URL ?? "http://localhost:3200";
 const STORAGE_KEY = "wingman_active_session";
 
-export interface SessionInfo {
+interface SessionInfo {
   id: string;
   sessionKey: string;
   messageCount: number;
@@ -17,7 +16,7 @@ export interface SessionInfo {
   preview?: string; // first user message as preview
 }
 
-export interface SessionMessage {
+interface SessionMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
@@ -45,17 +44,20 @@ export function useSession() {
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [activeSessionKey, setActiveSessionKey] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(STORAGE_KEY) || randomUUID();
-    }
-    return randomUUID();
-  });
+  // Start empty so server and client render identically (calling randomUUID in
+  // the initializer produced a server value that never matched the client →
+  // hydration mismatch). The real key is resolved on mount below.
+  const [activeSessionKey, setActiveSessionKey] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
-  // Persist active session key
+  // Resolve the active session key on the client only.
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, activeSessionKey);
+    setActiveSessionKey(localStorage.getItem(STORAGE_KEY) || randomUUID());
+  }, []);
+
+  // Persist active session key (skip the initial empty placeholder).
+  useEffect(() => {
+    if (activeSessionKey) localStorage.setItem(STORAGE_KEY, activeSessionKey);
   }, [activeSessionKey]);
 
   const refreshSessions = useCallback(async () => {
@@ -126,20 +128,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  return (
-    <SessionContext.Provider
-      value={{
-        sessions,
-        activeSessionKey,
-        loading,
-        createNewSession,
-        switchSession,
-        deleteSession: deleteSessionFn,
-        refreshSessions,
-        loadSessionMessages,
-      }}
-    >
-      {children}
-    </SessionContext.Provider>
+  const value = useMemo<SessionContextValue>(
+    () => ({
+      sessions,
+      activeSessionKey,
+      loading,
+      createNewSession,
+      switchSession,
+      deleteSession: deleteSessionFn,
+      refreshSessions,
+      loadSessionMessages,
+    }),
+    [
+      sessions,
+      activeSessionKey,
+      loading,
+      createNewSession,
+      switchSession,
+      deleteSessionFn,
+      refreshSessions,
+      loadSessionMessages,
+    ],
   );
+
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

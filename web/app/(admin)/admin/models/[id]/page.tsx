@@ -112,10 +112,13 @@ interface SyncEvent {
   created_at: string;
 }
 
-const categoryColors: Record<string, { text: string; border: string; bg: string; label: string }> = {
-  powerful: { text: "text-copilot-purple", border: "border-copilot-purple/40", bg: "bg-copilot-purple/10", label: "Powerful" },
-  versatile: { text: "text-primary", border: "border-primary/40", bg: "bg-primary/10", label: "Versatile" },
-  lightweight: { text: "text-copilot-green", border: "border-copilot-green/40", bg: "bg-copilot-green/10", label: "Lightweight" },
+// `line` must be a full static class — Tailwind can't see runtime-built
+// strings like `via-${color}`, so the gradient accent silently renders
+// colorless if you interpolate.
+const categoryColors: Record<string, { text: string; border: string; bg: string; label: string; line: string }> = {
+  powerful: { text: "text-copilot-purple", border: "border-copilot-purple/40", bg: "bg-copilot-purple/10", label: "Powerful", line: "via-copilot-purple/60" },
+  versatile: { text: "text-primary", border: "border-primary/40", bg: "bg-primary/10", label: "Versatile", line: "via-primary/60" },
+  lightweight: { text: "text-copilot-green", border: "border-copilot-green/40", bg: "bg-copilot-green/10", label: "Lightweight", line: "via-copilot-green/60" },
 };
 
 export default function ModelDetailPage() {
@@ -202,7 +205,7 @@ export default function ModelDetailPage() {
             isRemoved
               ? "from-transparent via-destructive/60 to-transparent"
               : cat
-              ? `from-transparent via-${cat.text.replace("text-", "")}/60 to-transparent`
+              ? `from-transparent ${cat.line} to-transparent`
               : "from-transparent via-primary/40 to-transparent"
           }`}
         />
@@ -440,7 +443,7 @@ export default function ModelDetailPage() {
 
                 return sorted.map(({ cat, avg, bestRank }) => (
                   <div key={cat} className="flex items-center gap-3">
-                    <span className="font-mono text-[11px] tracking-wider text-muted-foreground w-28 truncate capitalize">{cat.replace(/_/g, " ")}</span>
+                    <span title={cat.replace(/_/g, " ")} className="font-mono text-[11px] tracking-wider text-muted-foreground w-28 truncate capitalize">{cat.replace(/_/g, " ")}</span>
                     <div className="flex-1 h-5 rounded-md bg-secondary/60 overflow-hidden relative">
                       <div
                         className="h-full rounded-md bg-linear-to-r from-copilot-purple/60 to-copilot-purple/90 transition-all duration-500"
@@ -462,7 +465,10 @@ export default function ModelDetailPage() {
           <p className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60 mt-2">Detailed Results</p>
           <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/60 backdrop-blur-md">
             <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-copilot-purple/40 to-transparent" />
-            <div className="divide-y divide-border/50">
+            {/* The 12-col rows can't compress on phones — let the table scroll
+                horizontally rather than crushing every column. */}
+            <div className="overflow-x-auto scroll-sleek">
+            <div className="divide-y divide-border/50 min-w-160">
               {/* Header */}
               <div className="grid grid-cols-12 gap-2 px-5 py-3 font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60">
                 <div className="col-span-4">Benchmark</div>
@@ -473,12 +479,12 @@ export default function ModelDetailPage() {
                 <div className="col-span-1 text-center">Verified</div>
               </div>
 
-              {llmStats.scores
+              {[...llmStats.scores]
                 .sort((a, b) => (a.category ?? "").localeCompare(b.category ?? ""))
-                .map((score) => {
+                .map((score, idx) => {
                   const pct = score.max_score > 0 ? (score.score / score.max_score) * 100 : 0;
                   return (
-                    <div key={score.benchmark_id} className="grid grid-cols-12 gap-2 px-5 py-2.5 items-center group hover:bg-secondary/30 transition-colors">
+                    <div key={`${score.benchmark_id}-${score.source_url ?? ""}-${idx}`} className="grid grid-cols-12 gap-2 px-5 py-2.5 items-center group hover:bg-secondary/30 transition-colors">
                       <div className="col-span-4">
                         <div className="flex items-center gap-1.5">
                           <p className="text-sm font-medium truncate">{score.benchmark_name}</p>
@@ -534,6 +540,7 @@ export default function ModelDetailPage() {
                     </div>
                   );
                 })}
+            </div>
             </div>
           </div>
 

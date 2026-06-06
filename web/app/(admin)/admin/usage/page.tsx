@@ -14,10 +14,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminFetch } from "@/lib/admin-api";
 
-type Window = "24h" | "7d" | "30d";
+type UsageWindow = "24h" | "7d" | "30d";
 
 interface UsageSummary {
-  window: Window;
+  window: UsageWindow;
   totals: {
     requests: number;
     successRequests: number;
@@ -52,7 +52,7 @@ interface UsageSummary {
   }>;
 }
 
-const WINDOWS: Array<{ key: Window; label: string }> = [
+const WINDOWS: Array<{ key: UsageWindow; label: string }> = [
   { key: "24h", label: "24h" },
   { key: "7d", label: "7d" },
   { key: "30d", label: "30d" },
@@ -71,21 +71,21 @@ function formatMs(ms: number | null): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
-function formatBucket(iso: string, window: Window): string {
+function formatBucket(iso: string, win: UsageWindow): string {
   const d = new Date(iso);
-  if (window === "24h") {
+  if (win === "24h") {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 export default function UsagePage() {
-  const [window, setWindow] = useState<Window>("24h");
+  const [windowKey, setWindowKey] = useState<UsageWindow>("24h");
   const [data, setData] = useState<UsageSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (w: Window) => {
+  const load = useCallback(async (w: UsageWindow) => {
     setLoading(true);
     setError(null);
     try {
@@ -102,8 +102,8 @@ export default function UsagePage() {
   }, []);
 
   useEffect(() => {
-    load(window);
-  }, [window, load]);
+    load(windowKey);
+  }, [windowKey, load]);
 
   const totals = data?.totals;
   const series = data?.timeSeries ?? [];
@@ -154,9 +154,9 @@ export default function UsagePage() {
               <button
                 key={w.key}
                 type="button"
-                onClick={() => setWindow(w.key)}
+                onClick={() => setWindowKey(w.key)}
                 className={`px-3 py-1.5 rounded-md font-mono text-[10px] tracking-widest uppercase transition-colors ${
-                  w.key === window
+                  w.key === windowKey
                     ? "bg-copilot-purple/20 text-copilot-purple"
                     : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                 }`}
@@ -188,7 +188,7 @@ export default function UsagePage() {
         <>
           {/* Stat grid */}
           <section className="space-y-3">
-            <p className="label-mono px-1">// Window Summary &middot; {window}</p>
+            <p className="label-mono px-1">// Window Summary &middot; {windowKey}</p>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 stagger-children">
               <StatCard
                 label="Requests"
@@ -248,7 +248,7 @@ export default function UsagePage() {
                     // No data yet for this window
                   </p>
                 ) : (
-                  <TimeSeriesChart series={series} max={maxSeries} window={window} />
+                  <TimeSeriesChart series={series} max={maxSeries} window={windowKey} />
                 )}
               </div>
             </div>
@@ -368,11 +368,11 @@ function StatCard({
 function TimeSeriesChart({
   series,
   max,
-  window,
+  window: win,
 }: {
   series: UsageSummary["timeSeries"];
   max: number;
-  window: Window;
+  window: UsageWindow;
 }) {
   // pick a labelling interval so the x-axis doesn't get crowded
   const labelEvery = series.length > 14 ? Math.ceil(series.length / 8) : 1;
@@ -386,7 +386,7 @@ function TimeSeriesChart({
         <div aria-hidden className="absolute inset-x-0 bottom-1/2 h-px bg-border/30" />
         <div aria-hidden className="absolute inset-x-0 bottom-3/4 h-px bg-border/30" />
 
-        {series.map((s, i) => {
+        {series.map((s) => {
           const heightPct = max > 0 ? (s.requests / max) * 100 : 0;
           const errorPct =
             s.requests > 0 ? (s.errorCount / s.requests) * 100 : 0;
@@ -405,7 +405,7 @@ function TimeSeriesChart({
                   {s.errorCount > 0 && (
                     <p className="text-destructive">{s.errorCount} err</p>
                   )}
-                  <p className="text-muted-foreground/70 mt-0.5">{formatBucket(s.bucket, window)}</p>
+                  <p className="text-muted-foreground/70 mt-0.5">{formatBucket(s.bucket, win)}</p>
                 </div>
               </div>
 
@@ -431,7 +431,7 @@ function TimeSeriesChart({
       <div className="flex gap-1.5 mt-2 font-mono text-[9px] tracking-wider text-muted-foreground/70">
         {series.map((s, i) => (
           <div key={s.bucket} className="flex-1 text-center min-w-1.5">
-            {i % labelEvery === 0 ? formatBucket(s.bucket, window) : ""}
+            {i % labelEvery === 0 ? formatBucket(s.bucket, win) : ""}
           </div>
         ))}
       </div>

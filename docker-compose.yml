@@ -19,7 +19,7 @@ services:
       context: ./proxy
       dockerfile: Dockerfile
       args:
-        - APP_VERSION=${APP_VERSION:-2026.05.16.1600}
+        - APP_VERSION=${APP_VERSION:-2026.06.06.1240}
     container_name: wingman-proxy
     ports:
       - "${PROXY_PORT:-3200}:3200"

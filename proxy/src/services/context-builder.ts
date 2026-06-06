@@ -37,13 +37,13 @@ export function buildContext(
   const historyMessages: ChatMessage[] = [];
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
-    const cost = msg.tokenCount ?? estimateTokens(msg.content);
+    const cost = msg.tokenCount ?? estimateTokens(msg.content ?? '');
 
     if (tokensUsed + cost > tokenBudget) {
       break;
     }
 
-    historyMessages.unshift({ role: msg.role, content: msg.content });
+    historyMessages.unshift({ role: msg.role, content: msg.content ?? '' });
     tokensUsed += cost;
   }
 

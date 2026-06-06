@@ -1,24 +1,20 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { memo } from "react";
 import { MarkdownHooks as ReactMarkdown } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { Check, Copy } from "lucide-react";
+import { useCopy } from "@/hooks/use-copy";
 
 function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [text]);
+  const { copied, copy } = useCopy();
 
   return (
     <button
       type="button"
-      onClick={handleCopy}
+      onClick={() => copy(text)}
+      aria-label="Copy code"
       title="Copy code"
       className="absolute top-2 right-2 p-1.5 rounded-md bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover/code:opacity-100"
     >
@@ -27,7 +23,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export function ChatMarkdown({ content }: { content: string }) {
+export const ChatMarkdown = memo(function ChatMarkdown({ content }: { content: string }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -61,7 +57,7 @@ export function ChatMarkdown({ content }: { content: string }) {
           }
           return (
             <code
-              className="rounded-[4px] border border-border/50 bg-secondary/60 px-1.5 py-0.5 text-[13px] font-mono"
+              className="rounded-[4px] border border-border/50 bg-secondary/60 px-1.5 py-0.5 text-[13px] font-mono wrap-break-word"
               {...props}
             >
               {children}
@@ -151,7 +147,7 @@ export function ChatMarkdown({ content }: { content: string }) {
       {content}
     </ReactMarkdown>
   );
-}
+});
 
 /** Recursively extract text from React children for copy-to-clipboard */
 function extractText(node: React.ReactNode): string {

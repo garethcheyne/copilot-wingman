@@ -1,22 +1,29 @@
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@10 --activate
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --config.confirmModulesPureness=false
 
 COPY tsconfig.json ./
 COPY src/ ./src/
 
-RUN npm run build
+RUN pnpm run build
 
 # --- Production stage ---
-FROM node:22-alpine
+FROM node:24-alpine
+
+RUN corepack enable && corepack prepare pnpm@10 --activate
+
+# poppler-utils provides pdftoppm for PDF→PNG conversion
+RUN apk add --no-cache poppler-utils
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install --omit=dev
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod --config.confirmModulesPureness=false
 
 COPY --from=builder /app/dist ./dist
 

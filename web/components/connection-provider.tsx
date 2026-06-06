@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { adminFetch } from "@/lib/admin-api";
 
 type ConnectionHealth = "healthy" | "expired" | "disconnected" | "loading";
@@ -29,8 +29,14 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
     try {
       const res = await adminFetch("/api/admin/connection");
       if (!res.ok) {
-        setHealth("disconnected");
-        setMessage("Cannot reach proxy");
+        // The proxy *is* reachable on a 401 — the session is just invalid.
+        if (res.status === 401) {
+          setHealth("disconnected");
+          setMessage("Session expired — sign in again");
+        } else {
+          setHealth("disconnected");
+          setMessage("Cannot reach proxy");
+        }
         return;
       }
       const data = await res.json();
@@ -65,9 +71,10 @@ export function ConnectionProvider({ children }: { children: React.ReactNode }) 
     return () => clearInterval(interval);
   }, [check]);
 
-  return (
-    <ConnectionContext.Provider value={{ health, message, refresh: check }}>
-      {children}
-    </ConnectionContext.Provider>
+  const value = useMemo<ConnectionContextValue>(
+    () => ({ health, message, refresh: check }),
+    [health, message, check],
   );
+
+  return <ConnectionContext.Provider value={value}>{children}</ConnectionContext.Provider>;
 }

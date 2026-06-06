@@ -131,7 +131,9 @@ export default function ModelsPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
-  const [defaultModel, setDefaultModel] = useState<string>("gpt-4o");
+  // Empty until settings load — seeding a real model id here would briefly
+  // mark the wrong model as "Default" (and keep it marked if settings fail).
+  const [defaultModel, setDefaultModel] = useState<string>("");
   const [savingDefault, setSavingDefault] = useState(false);
 
   const load = useCallback(async () => {
@@ -139,7 +141,7 @@ export default function ModelsPage() {
       const [modelsRes, settingsRes, eventsRes] = await Promise.all([
         adminFetch("/api/admin/models"),
         adminFetch("/api/admin/settings"),
-        adminFetch("/api/admin/models/events?limit=20"),
+        adminFetch("/api/admin/models/events?limit=10"),
       ]);
       if (modelsRes.ok) {
         const data = await modelsRes.json();
@@ -512,7 +514,7 @@ function ModelCard({
         <div className="rail-divider my-4" />
 
         <div className="flex items-center justify-between">
-          <p className="font-mono text-[10px] text-muted-foreground/70 tracking-wider truncate">
+          <p title={model.id} className="font-mono text-[10px] text-muted-foreground/70 tracking-wider truncate">
             {model.id}
           </p>
           {isRemoved ? (

@@ -6,11 +6,11 @@ interface ChatErrorCardProps {
   onSwitchModel?: () => void;
 }
 
-export const ChatErrorCard: React.FC<ChatErrorCardProps> = ({ message, isPremiumModel, onSwitchModel }) => (
+const ChatErrorCard: React.FC<ChatErrorCardProps> = ({ message, isPremiumModel, onSwitchModel }) => (
   <div className="chat-error-card">
-    <div className="chat-error-card__icon">🚦</div>
+    <div className="chat-error-card__icon" aria-hidden="true">🚦</div>
     <div className="chat-error-card__content">
-      <strong>Quota Exceeded</strong>
+      <strong>{isPremiumModel ? "Premium Quota Exceeded" : "Quota Exceeded"}</strong>
       <div className="mt-1">
         {isPremiumModel ? (
           <>
@@ -18,6 +18,7 @@ export const ChatErrorCard: React.FC<ChatErrorCardProps> = ({ message, isPremium
             <span>Do you want to switch this conversation to a standard model?</span>
             <div className="mt-3">
               <button
+                type="button"
                 className="px-3 py-1 rounded bg-copilot-purple text-white hover:bg-copilot-purple/80 transition-colors"
                 onClick={onSwitchModel}
               >

@@ -48,7 +48,7 @@ export default function SpecPage() {
         <iframe
           title="Swagger UI"
           src={swaggerUrl}
-          className="w-full h-180 bg-transparent"
+          className="w-full h-[80vh] min-h-120 bg-transparent"
         />
       </div>
 

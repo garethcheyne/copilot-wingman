@@ -119,7 +119,7 @@ It performs a safe, data-preserving upgrade:
 1. **Force-syncs** the working tree to `origin/<current-branch>` (`git fetch` + `reset --hard` + `clean -fd`). Your `.env` and `.env.local` are explicitly preserved — production servers should never carry local edits.
 2. **Backs up Postgres** to `./backups/wingman-YYYYmmdd-HHMMSS.sql.gz` via `pg_dump` running inside the live container. The upgrade aborts if the backup fails.
 3. **Rebuilds only the app containers** (`web` + `proxy`). The `postgres` and `redis` containers — and their named volumes — are never recreated, never removed, never `down -v`'d.
-4. **Applies `schema.sql` additively** through `proxy/scripts/apply-migration.mjs`. All statements use `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`, so they're safe to re-run on every upgrade.
+4. **Applies migrations additively** through `proxy/scripts/migrate.mjs`. All statements use `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`, so they're safe to re-run on every upgrade.
 5. **Health-checks** `/api/health` and prints the running version.
 
 Flags:
@@ -144,7 +144,7 @@ NEXT_PUBLIC_PROXY_URL=https://api.yourdomain.com
 
 > **Important:** `NEXT_PUBLIC_PROXY_URL` is baked into the client-side JavaScript at build time. After changing it, rebuild the web container:
 > ```bash
-> docker compose up --build wingman-web -d
+> docker compose up --build web -d
 > ```
 
 Example nginx config:
@@ -184,16 +184,16 @@ server {
 
 ```bash
 cd proxy
-npm install
-npm run dev          # starts on port 3200 with hot-reload
+pnpm install
+pnpm dev          # starts on port 3200 with hot-reload
 ```
 
 ### Web (Next.js UI)
 
 ```bash
 cd web
-npm install
-npm run dev          # starts on port 3000
+pnpm install
+pnpm dev          # starts on port 3000
 ```
 
 > Both require PostgreSQL and Redis running. Start them with:
@@ -226,13 +226,14 @@ node proxy/scripts/reset-users.mjs
 
 | Layer | Technology |
 |---|---|
-| **Frontend** | Next.js 16, React 19, Tailwind CSS, shadcn/ui |
-| **Backend** | Express 5, TypeScript |
+| **Frontend** | Next.js 16, React 19, Tailwind CSS 4, Base UI |
+| **Backend** | Express 5, TypeScript, Node 24 |
 | **Database** | PostgreSQL 16 |
 | **Cache** | Redis 7 |
 | **Auth** | bcrypt, GitHub Device OAuth |
 | **Markdown** | react-markdown, remark-gfm, rehype-highlight |
-| **Container** | Docker Compose |
+| **Container** | Docker Compose, Alpine images |
+| **Package Manager** | pnpm 10 |
 
 ## Project Structure
 
@@ -243,14 +244,21 @@ copilot-wingman/
 │   │   ├── routes/        # API endpoints (chat, auth, admin, health)
 │   │   ├── services/      # Business logic (copilot client, OAuth, sessions)
 │   │   ├── middleware/     # Auth & rate limiting
-│   │   └── db/            # PostgreSQL client & schema
-│   └── scripts/           # CLI utilities
+│   │   └── db/            # PostgreSQL client, schema & migrations
+│   └── scripts/           # CLI utilities (migrate, reset-users)
 ├── web/                   # Next.js frontend
 │   ├── app/               # App router pages
 │   │   ├── (app)/         # Authenticated routes (chat, admin)
 │   │   └── setup/         # First-run setup wizard
 │   └── components/        # React components (chat, sidebar, markdown)
+├── sdk/                   # Client SDKs (dev only, not published)
+│   └── node/              # @wingman/sdk — TypeScript/Node SDK
+├── scripts/               # Manual test utilities
+├── tests/                 # Integration tests
 ├── docker-compose.yml
+├── upgradeWingman.sh      # Safe production upgrade script
+├── VERSION                # CalVer version (YYYY.MM.DD.HHmm)
+├── SKILL.md              # Agent skill definition
 ├── .env.example
 └── assets/
     └── wingman-ai.png
@@ -264,8 +272,7 @@ cannot — modify how the underlying models *decode*.
 
 ### Parallel tool calls
 
-When tool calling lands (planned for SDK v0.2 — see
-[PLAN-TOOL-CALLING.md](./PLAN-TOOL-CALLING.md)), Wingman passes the upstream
+Wingman passes the upstream
 `capabilities.supports.parallel_tool_calls` flag through to clients. Whether a
 model emits *one* tool call per assistant turn or *several* in parallel is a
 model-side behaviour decided inside the decoder.

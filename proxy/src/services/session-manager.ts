@@ -9,13 +9,22 @@ export interface Session {
   updatedAt: Date;
 }
 
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
 export interface Message {
   id: string;
   sessionId: string;
-  role: 'system' | 'user' | 'assistant';
-  content: string;
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
   tokenCount: number | null;
   createdAt: Date;
+  toolCalls?: ToolCall[] | null;
+  toolCallId?: string | null;
+  name?: string | null;
 }
 
 /**
@@ -51,16 +60,26 @@ export async function getOrCreateSession(sessionKey: string, systemPrompt?: stri
  */
 export async function addMessage(
   sessionId: string,
-  role: 'system' | 'user' | 'assistant',
-  content: string,
-  tokenCount?: number
+  role: 'system' | 'user' | 'assistant' | 'tool',
+  content: string | null,
+  tokenCount?: number,
+  opts?: { toolCalls?: ToolCall[] | null; toolCallId?: string | null; name?: string | null }
 ): Promise<Message> {
   const result = await pool.query<Message>(
-    `INSERT INTO chat_messages (session_id, role, content, token_count)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO chat_messages (session_id, role, content, token_count, tool_calls, tool_call_id, name)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id, session_id AS "sessionId", role, content,
-               token_count AS "tokenCount", created_at AS "createdAt"`,
-    [sessionId, role, content, tokenCount ?? null]
+               token_count AS "tokenCount", created_at AS "createdAt",
+               tool_calls AS "toolCalls", tool_call_id AS "toolCallId", name`,
+    [
+      sessionId,
+      role,
+      content,
+      tokenCount ?? null,
+      opts?.toolCalls ? JSON.stringify(opts.toolCalls) : null,
+      opts?.toolCallId ?? null,
+      opts?.name ?? null,
+    ]
   );
 
   // Touch session updated_at
@@ -78,7 +97,8 @@ export async function addMessage(
 export async function getMessages(sessionId: string): Promise<Message[]> {
   const result = await pool.query<Message>(
     `SELECT id, session_id AS "sessionId", role, content,
-            token_count AS "tokenCount", created_at AS "createdAt"
+            token_count AS "tokenCount", created_at AS "createdAt",
+            tool_calls AS "toolCalls", tool_call_id AS "toolCallId", name
      FROM chat_messages
      WHERE session_id = $1
      ORDER BY created_at ASC`,
@@ -91,7 +111,7 @@ export async function getMessages(sessionId: string): Promise<Message[]> {
 /**
  * List all sessions, most recent first.
  */
-export async function listSessions(limit = 50): Promise<Session[]> {
+async function listSessions(limit = 50): Promise<Session[]> {
   const result = await pool.query<Session>(
     `SELECT id, session_key AS "sessionKey", system_prompt AS "systemPrompt",
             source, created_at AS "createdAt", updated_at AS "updatedAt"
@@ -207,6 +227,8 @@ export async function listSessionsWithStats(
     const where: string[] = [
       `rl.source = 'api_key'`,
       `rl.conversation_id IS NOT NULL`,
+      // Exclude conversations that now have a real chat_sessions row (avoid duplicates)
+      `NOT EXISTS (SELECT 1 FROM chat_sessions cs WHERE cs.session_key = 'completions:' || rl.api_key_id || ':' || rl.conversation_id)`,
     ];
     const params: (number | string)[] = [limit];
     if (filter.apiKeyId) {
@@ -282,7 +304,7 @@ export async function deleteSession(id: string): Promise<boolean> {
 /**
  * Update token count for a specific message — used by chat.ts after we count.
  */
-export async function setMessageTokenCount(messageId: string, tokenCount: number): Promise<void> {
+async function setMessageTokenCount(messageId: string, tokenCount: number): Promise<void> {
   await pool.query(
     `UPDATE chat_messages SET token_count = $1 WHERE id = $2`,
     [tokenCount, messageId]

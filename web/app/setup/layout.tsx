@@ -20,9 +20,12 @@ export default function SetupLayout({ children }: { children: React.ReactNode })
         // if GitHub is already connected
         router.replace(user ? "/setup/connect" : "/login");
       }
+    } else if (pathname === "/setup/connect") {
+      // Step 2 requires an authenticated account (just created or logged in).
+      if (!user) {
+        router.replace(needsSetup ? "/setup" : "/login");
+      }
     }
-    // /setup/connect is allowed if user is authenticated (just created account)
-    // but we don't gate it here — the page itself handles redirect after completion
   }, [needsSetup, user, loading, router, pathname]);
 
   if (loading) {
@@ -35,6 +38,11 @@ export default function SetupLayout({ children }: { children: React.ReactNode })
 
   // Block /setup if setup already done
   if (pathname === "/setup" && !needsSetup) {
+    return null;
+  }
+
+  // Block /setup/connect for unauthenticated visitors.
+  if (pathname === "/setup/connect" && !user) {
     return null;
   }
 

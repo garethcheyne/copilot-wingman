@@ -34,6 +34,16 @@ const nextConfig: NextConfig = {
     if (config.optimization?.splitChunks) {
       config.optimization.splitChunks.automaticNameDelimiter = "-";
     }
+
+    // pdf.js worker — emit as a static asset so the browser can load it via URL
+    config.module.rules.push({
+      test: /pdf\.worker(\.min)?\.mjs$/,
+      type: "asset/resource",
+      generator: {
+        filename: "static/worker/[hash][ext][query]",
+      },
+    });
+
     return config;
   },
 };

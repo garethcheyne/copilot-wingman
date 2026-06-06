@@ -13,9 +13,7 @@ import {
   Card,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardContent,
-  CardFooter,
   CardAction,
 } from "@/components/ui/card";
 import {
@@ -109,6 +107,9 @@ export default function ApiKeysPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  // Surfaces failures from create/edit/toggle/delete/copy that would otherwise
+  // be swallowed silently.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Available models for scope selection
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
@@ -266,9 +267,15 @@ export default function ApiKeysPage() {
     });
   };
 
+  // Rate limit is a positive integer; clamp the free-text input so a stray
+  // negative / huge value never reaches the server.
+  const clampRateLimit = (raw: string) =>
+    Math.min(1000, Math.max(1, parseInt(raw, 10) || 30));
+
   const handleCreate = async () => {
     if (!newName.trim()) return;
     setCreating(true);
+    setActionError(null);
     try {
       const res = await adminFetch("/api/admin/api-keys", {
         method: "POST",
@@ -276,45 +283,54 @@ export default function ApiKeysPage() {
           name: newName.trim(),
           scopes: selectedScopes,
           defaultModel: newDefaultModel,
-          rateLimit: parseInt(newRateLimit) || 30,
+          rateLimit: clampRateLimit(newRateLimit),
           expiresAt: newExpiry ? newExpiry.toISOString() : null,
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setRevealedKey({ id: data.apiKey.id, rawKey: data.rawKey });
-        setDialogOpen(false);
-        setNewName("");
-        setSelectedScopes([]);
-        setNewDefaultModel(null);
-        setNewRateLimit("30");
-        setNewExpiry(undefined);
-        loadKeys();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setActionError(data?.error ?? `Couldn't create key (HTTP ${res.status})`);
+        return;
       }
-    } catch {
-      // ignore
+      setRevealedKey({ id: data.apiKey.id, rawKey: data.rawKey });
+      setDialogOpen(false);
+      setNewName("");
+      setSelectedScopes([]);
+      setNewDefaultModel(null);
+      setNewRateLimit("30");
+      setNewExpiry(undefined);
+      loadKeys();
+    } catch (err) {
+      setActionError((err as Error).message);
     } finally {
       setCreating(false);
     }
   };
 
   const handleToggle = async (id: string, isActive: boolean) => {
+    setActionError(null);
+    // Optimistic update with rollback if the server rejects.
+    setKeys((prev) => prev.map((k) => (k.id === id ? { ...k, isActive } : k)));
     try {
-      await adminFetch(`/api/admin/api-keys/${id}`, {
+      const res = await adminFetch(`/api/admin/api-keys/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ isActive }),
       });
-      setKeys((prev) =>
-        prev.map((k) => (k.id === id ? { ...k, isActive } : k))
-      );
-    } catch {
-      // ignore
+      if (!res.ok) {
+        setKeys((prev) => prev.map((k) => (k.id === id ? { ...k, isActive: !isActive } : k)));
+        const data = await res.json().catch(() => null);
+        setActionError(data?.error ?? `Couldn't update key (HTTP ${res.status})`);
+      }
+    } catch (err) {
+      setKeys((prev) => prev.map((k) => (k.id === id ? { ...k, isActive: !isActive } : k)));
+      setActionError((err as Error).message);
     }
   };
 
   const handleDelete = async (id: string) => {
     setDeleting(id);
+    setActionError(null);
     try {
       const res = await adminFetch(`/api/admin/api-keys/${id}`, {
         method: "DELETE",
@@ -322,18 +338,29 @@ export default function ApiKeysPage() {
       if (res.ok) {
         setKeys((prev) => prev.filter((k) => k.id !== id));
         if (revealedKey?.id === id) setRevealedKey(null);
+      } else {
+        const data = await res.json().catch(() => null);
+        setActionError(data?.error ?? `Couldn't delete key (HTTP ${res.status})`);
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      setActionError((err as Error).message);
     } finally {
       setDeleting(null);
     }
   };
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
+  const copyToClipboard = async (text: string, id: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        throw new Error("clipboard unavailable");
+      }
+      setCopied(id);
+      setTimeout(() => setCopied(null), 2000);
+    } catch {
+      setActionError("Couldn't copy to clipboard — please copy it manually.");
+    }
   };
 
   const openEdit = (key: ApiKey) => {
@@ -366,20 +393,22 @@ export default function ApiKeysPage() {
           name: editName.trim(),
           scopes: editScopes,
           defaultModel: editDefaultModel,
-          rateLimit: parseInt(editRateLimit) || 30,
+          rateLimit: clampRateLimit(editRateLimit),
           expiresAt: editExpiry ? editExpiry.toISOString() : null,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setKeys((prev) =>
-          prev.map((k) => (k.id === editingKey.id ? data.apiKey : k))
-        );
-        setEditDialogOpen(false);
-        setEditingKey(null);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setActionError(data?.error ?? `Couldn't save key (HTTP ${res.status})`);
+        return;
       }
-    } catch {
-      // ignore
+      setKeys((prev) =>
+        prev.map((k) => (k.id === editingKey.id ? data.apiKey : k))
+      );
+      setEditDialogOpen(false);
+      setEditingKey(null);
+    } catch (err) {
+      setActionError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -401,6 +430,24 @@ export default function ApiKeysPage() {
         </p>
       </div>
 
+      {/* Action error */}
+      {actionError && (
+        <Alert role="alert" className="border-destructive/40 bg-destructive/5">
+          <AlertTriangle className="w-4 h-4 text-destructive" />
+          <AlertTitle className="text-destructive">Something went wrong</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>{actionError}</span>
+            <button
+              type="button"
+              onClick={() => setActionError(null)}
+              className="font-mono text-[10px] tracking-wider uppercase text-muted-foreground hover:text-foreground"
+            >
+              Dismiss
+            </button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Revealed key warning */}
       {revealedKey && (
         <Alert className="border-yellow-500/40 bg-yellow-500/5">
@@ -419,6 +466,7 @@ export default function ApiKeysPage() {
                 onClick={() =>
                   copyToClipboard(revealedKey.rawKey, "revealed")
                 }
+                aria-label="Copy API key"
                 className="shrink-0"
               >
                 {copied === "revealed" ? (
@@ -736,7 +784,7 @@ export default function ApiKeysPage() {
                         : "text-muted-foreground"
                     }`}
                   />
-                  <CardTitle className="truncate">{key.name}</CardTitle>
+                  <CardTitle className="truncate" title={key.name}>{key.name}</CardTitle>
                   <Badge variant="outline" className="font-mono text-[11px]">
                     {key.keyPrefix}...
                   </Badge>
@@ -751,6 +799,8 @@ export default function ApiKeysPage() {
                       size="icon"
                       className="text-muted-foreground hover:text-foreground"
                       onClick={() => openEdit(key)}
+                      aria-label={`Edit ${key.name}`}
+                      title="Edit"
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>
@@ -759,6 +809,7 @@ export default function ApiKeysPage() {
                       onCheckedChange={(checked) =>
                         handleToggle(key.id, checked)
                       }
+                      aria-label={`${key.isActive ? "Disable" : "Enable"} ${key.name}`}
                     />
                     <Button
                       variant="ghost"
@@ -766,6 +817,8 @@ export default function ApiKeysPage() {
                       className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
                       onClick={() => handleDelete(key.id)}
                       disabled={deleting === key.id}
+                      aria-label={`Delete ${key.name}`}
+                      title="Delete"
                     >
                       {deleting === key.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />

@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import { Copy, Check } from "lucide-react";
+import { useCopy } from "@/hooks/use-copy";
 
 export const PROXY_URL =
   process.env.NEXT_PUBLIC_PROXY_URL || "http://localhost:3200";
 
 export type Method = "GET" | "POST" | "PUT" | "DELETE";
 
-export const methodColor: Record<Method, string> = {
+const methodColor: Record<Method, string> = {
   GET: "bg-primary/15 text-primary border-primary/30",
   POST: "bg-copilot-green/15 text-copilot-green border-copilot-green/30",
   PUT: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
@@ -22,13 +22,7 @@ export function CodeBlock({
   code: string;
   language?: string;
 }) {
-  const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const { copied, copy } = useCopy();
 
   return (
     <div className="relative group rounded-xl border border-border/70 bg-background/60 backdrop-blur-md overflow-hidden">
@@ -43,7 +37,8 @@ export function CodeBlock({
         </span>
         <button
           type="button"
-          onClick={copy}
+          onClick={() => copy(code)}
+          aria-label="Copy code"
           className="flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[9px] tracking-wider uppercase text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
         >
           {copied ? (
@@ -66,7 +61,7 @@ export function CodeBlock({
   );
 }
 
-export function EndpointHeader({
+function EndpointHeader({
   method,
   path,
 }: {

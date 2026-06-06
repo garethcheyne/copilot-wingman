@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { Send, Sparkles, User, Loader2, ChevronDown, Terminal, Code2, Bug, Wand2, ImagePlus, X, FlaskConical } from "lucide-react";
+import { Send, Sparkles, User, Loader2, ChevronDown, Terminal, Code2, Bug, Wand2, ImagePlus, X, FlaskConical, Square } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,12 +13,17 @@ import Toast from "@/components/ui/toast";
 import { MobileNavTrigger } from "@/components/mobile-nav";
 import { adminFetch } from "@/lib/admin-api";
 import { notifyWhenHidden } from "@/lib/notifications";
+import { pdfToImages, isPdf } from "@/lib/pdf-to-images";
 import "highlight.js/styles/github-dark.css";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   images?: string[]; // base64 data URLs
+  // Set on assistant turns that failed with a quota error. Rendered as a
+  // ChatErrorCard instead of message content — avoids smuggling UI state
+  // through magic strings in `content`.
+  error?: "quota" | "premium_quota";
 }
 
 interface ModelInfo {
@@ -39,25 +44,44 @@ const SUGGESTIONS: Array<{ icon: typeof Code2; label: string; prompt: string; kb
 ];
 
 export default function ChatPage() {
-    const [toast, setToast] = useState<string | null>(null);
-  const { activeSessionKey, sessions, refreshSessions, loadSessionMessages } = useSession();
+  const [toast, setToast] = useState<string | null>(null);
+  const { activeSessionKey, sessions, loading: sessionsLoading, refreshSessions, loadSessionMessages } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>("gpt-4o");
   const [showModelPicker, setShowModelPicker] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const modelPickerRef = useRef<HTMLDivElement>(null);
+  // Tracks the in-flight chat stream so it can be cancelled on unmount or
+  // session switch (otherwise a stale stream keeps writing into whatever
+  // session is now active).
+  const abortRef = useRef<AbortController | null>(null);
+  // The session key whose messages are currently displayed. Guards the loader
+  // below from re-fetching (and clobbering freshly streamed messages) every
+  // time the sessions list refreshes after a send.
+  const loadedKeyRef = useRef<string | null>(null);
 
-  // Load messages when switching sessions
+  // Load messages only when the *active session* changes — not on every
+  // sessions-list refresh. Without the loadedKeyRef guard, refreshSessions()
+  // (called after each send) would re-fetch and overwrite the reply we just
+  // streamed in locally.
   useEffect(() => {
+    if (loadedKeyRef.current === activeSessionKey) return;
     const session = sessions.find((s) => s.sessionKey === activeSessionKey);
+    // Sessions list hasn't arrived yet — wait rather than commit an empty
+    // thread for a session that may actually have history.
+    if (!session && sessionsLoading) return;
+    loadedKeyRef.current = activeSessionKey;
     if (session && session.messageCount > 0) {
       loadSessionMessages(session.id).then((msgs) => {
+        // Ignore if the user switched sessions again before this resolved.
+        if (loadedKeyRef.current !== activeSessionKey) return;
         setMessages(
           msgs.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))
         );
@@ -65,9 +89,18 @@ export default function ChatPage() {
     } else {
       setMessages([]);
     }
+  }, [activeSessionKey, sessions, sessionsLoading, loadSessionMessages]);
+
+  // Reset the composer and cancel any in-flight stream when the user actually
+  // switches sessions.
+  useEffect(() => {
     setInput("");
     setAttachedImages([]);
-  }, [activeSessionKey, sessions, loadSessionMessages]);
+    abortRef.current?.abort();
+  }, [activeSessionKey]);
+
+  // Cancel any in-flight stream on unmount.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   // Load models + default on mount
   useEffect(() => {
@@ -111,26 +144,57 @@ export default function ChatPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
+  // Auto-scroll, but only when the user is already near the bottom — so we
+  // don't yank the viewport back down while they're reading earlier messages
+  // mid-stream. Use instant scroll during streaming (smooth animates per token
+  // and looks janky); smooth otherwise.
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (nearBottom) {
+      el.scrollTo({ top: el.scrollHeight, behavior: isLoading ? "auto" : "smooth" });
+    }
+  }, [messages, isLoading]);
 
-  const addImages = (files: FileList | File[]) => {
-    const MAX_IMAGES = 5;
+  const addFiles = async (files: FileList | File[]) => {
+    const MAX_IMAGES = 10;
     const remaining = MAX_IMAGES - attachedImages.length;
-    const toProcess = Array.from(files).filter(f => f.type.startsWith("image/")).slice(0, remaining);
-    toProcess.forEach((file) => {
+    if (remaining <= 0) return;
+
+    const fileArray = Array.from(files);
+    const imageFiles = fileArray.filter(f => f.type.startsWith("image/"));
+    const pdfFiles = fileArray.filter(f => isPdf(f));
+
+    // Process images directly
+    const imageSlots = Math.min(imageFiles.length, remaining);
+    imageFiles.slice(0, imageSlots).forEach((file) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const dataUrl = e.target?.result as string;
-        setAttachedImages((prev) => [...prev, dataUrl]);
+        setAttachedImages((prev) => prev.length < MAX_IMAGES ? [...prev, dataUrl] : prev);
       };
       reader.readAsDataURL(file);
     });
+
+    // Process PDFs (render pages as images for vision)
+    if (pdfFiles.length > 0) {
+      setIsProcessingFile(true);
+      try {
+        for (const pdf of pdfFiles) {
+          const pages = await pdfToImages(pdf, { maxPages: 5, scale: 1.5 });
+          setAttachedImages((prev) => {
+            const slotsLeft = MAX_IMAGES - prev.length;
+            return [...prev, ...pages.slice(0, slotsLeft)];
+          });
+        }
+      } catch (err) {
+        console.error("[pdf] Failed to render PDF:", err);
+        setToast("Failed to process PDF — try a smaller file");
+      } finally {
+        setIsProcessingFile(false);
+      }
+    }
   };
 
   const removeImage = (index: number) => {
@@ -142,28 +206,29 @@ export default function ChatPage() {
     if (!items) return;
     const imageFiles: File[] = [];
     for (let i = 0; i < items.length; i++) {
-      if (items[i].type.startsWith("image/")) {
+      if (items[i].type.startsWith("image/") || items[i].type === "application/pdf") {
         const file = items[i].getAsFile();
         if (file) imageFiles.push(file);
       }
     }
     if (imageFiles.length > 0) {
       e.preventDefault();
-      addImages(imageFiles);
+      addFiles(imageFiles);
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer?.files) {
-      addImages(e.dataTransfer.files);
+      addFiles(e.dataTransfer.files);
     }
   };
 
-  const sendMessage = async (text?: string) => {
+  const sendMessage = async (text?: string, modelOverride?: string) => {
     const content = text ?? input.trim();
     if ((!content && attachedImages.length === 0) || isLoading) return;
 
+    const model = modelOverride ?? selectedModel;
     const images = attachedImages.length > 0 ? [...attachedImages] : undefined;
     setInput("");
     setAttachedImages([]);
@@ -172,6 +237,11 @@ export default function ChatPage() {
 
     // Add placeholder for assistant
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+    // Cancel any previous in-flight stream before starting a new one.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       const sessionToken =
@@ -182,7 +252,8 @@ export default function ChatPage() {
           "Content-Type": "application/json",
           "x-session-token": sessionToken,
         },
-        body: JSON.stringify({ sessionKey: activeSessionKey, message: content || "What is in this image?", model: selectedModel, stream: true, images }),
+        body: JSON.stringify({ sessionKey: activeSessionKey, message: content || "What is in this image?", model, stream: true, images }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -195,14 +266,21 @@ export default function ChatPage() {
           errText = await res.text();
         }
         if (res.status === 429) {
-          // Detect premium model quota error (simple heuristic: look for 'premium' or 'model' in error text)
-          const isPremiumModel = /premium|model|allowance|gpt-4|opus|claude|gemini/i.test(errText) && selectedModel !== "gpt-3.5-turbo" && selectedModel !== "gpt-3.5";
+          // Prefer a structured error code from the proxy; fall back to a
+          // text heuristic for older proxy versions.
+          const code = errJson?.code ?? errJson?.error?.code;
+          const isStandardModel = model === "gpt-3.5-turbo" || model === "gpt-3.5";
+          const isPremiumModel =
+            code === "premium_quota_exceeded" ||
+            (code == null &&
+              /premium|allowance|gpt-4|opus|claude|gemini/i.test(errText) &&
+              !isStandardModel);
           setMessages((prev) => {
             const updated = [...prev];
             updated[updated.length - 1] = {
               role: "assistant",
-              content: isPremiumModel ? "__PREMIUM_QUOTA_ERROR__" : "__QUOTA_ERROR__",
-              images: undefined,
+              content: "",
+              error: isPremiumModel ? "premium_quota" : "quota",
             };
             return updated;
           });
@@ -227,36 +305,43 @@ export default function ChatPage() {
 
       const decoder = new TextDecoder();
       let accumulated = "";
+      // SSE frames can be split across network chunks; buffer partial lines
+      // and only parse complete ones, retaining the trailing remainder.
+      let buffer = "";
+
+      const flushLine = (line: string) => {
+        if (!line.startsWith("data: ") || line === "data: [DONE]") return;
+        try {
+          const parsed = JSON.parse(line.slice(6));
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            accumulated += delta;
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = { role: "assistant", content: accumulated };
+              return updated;
+            });
+          }
+        } catch {
+          // skip unparseable
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split("\n")) {
-          if (line.startsWith("data: ") && line !== "data: [DONE]") {
-            try {
-              const parsed = JSON.parse(line.slice(6));
-              const delta = parsed.choices?.[0]?.delta?.content;
-              if (delta) {
-                accumulated += delta;
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    role: "assistant",
-                    content: accumulated,
-                  };
-                  return updated;
-                });
-              }
-            } catch {
-              // skip unparseable
-            }
-          }
-        }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        // Keep the last (possibly partial) line in the buffer.
+        buffer = lines.pop() ?? "";
+        for (const line of lines) flushLine(line);
       }
+      // Process any remaining buffered line after the stream ends.
+      if (buffer) flushLine(buffer);
 
-      // If no content came through streaming, try non-streaming fallback
+      // Stream completed but produced no content (e.g. server sent only
+      // keep-alives or an unexpected shape).
       if (!accumulated) {
         setMessages((prev) => {
           const updated = [...prev];
@@ -268,6 +353,9 @@ export default function ChatPage() {
         });
       }
     } catch (err) {
+      // Aborts are expected (unmount / session switch / retry) — keep whatever
+      // streamed so far and stay silent.
+      if ((err as Error).name === "AbortError") return;
       setToast(`Error: ${(err as Error).message}`);
       setMessages((prev) => {
         const updated = [...prev];
@@ -279,22 +367,34 @@ export default function ChatPage() {
         return updated;
       });
     } finally {
-      setIsLoading(false);
-      refreshSessions();
+      // Only clear loading / refresh if this send still owns the controller
+      // (a newer send or an abort may have superseded it).
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+        refreshSessions();
       // If the tab is in the background, surface a local browser notification
       // so the user knows their reply is ready. No-op when permission is
       // denied/unset or when the tab is already visible.
-      notifyWhenHidden({
-        title: "Wingman reply ready",
-        body: content
-          ? content.length > 80
-            ? `${content.slice(0, 80)}…`
-            : content
-          : "Your response is ready.",
-        url: "/chat",
-      });
+        notifyWhenHidden({
+          title: "Wingman reply ready",
+          body: content
+            ? content.length > 80
+              ? `${content.slice(0, 80)}…`
+              : content
+            : "Your response is ready.",
+          url: "/chat",
+        });
+      }
     }
   };
+
+  const stopGenerating = useCallback(() => {
+    abortRef.current?.abort();
+    setIsLoading(false);
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -344,7 +444,10 @@ export default function ChatPage() {
           {/* Model picker */}
           <div className="relative" ref={modelPickerRef}>
           <button
+            type="button"
             onClick={() => setShowModelPicker(!showModelPicker)}
+            aria-haspopup="listbox"
+            aria-expanded={showModelPicker ? "true" : "false"}
             className="flex items-center gap-1.5 sm:gap-2 pl-2 sm:pl-2.5 pr-1.5 py-1.5 -mr-2 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors max-w-[55vw] sm:max-w-none"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-copilot-purple shadow-[0_0_8px_hsl(258_90%_66%/0.8)] shrink-0" />
@@ -353,13 +456,14 @@ export default function ChatPage() {
             <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
           </button>
           {showModelPicker && models.length > 0 && (
-            <div className="absolute right-0 top-full mt-2 z-50 w-[min(20rem,calc(100vw-1.5rem))] max-h-[70vh] overflow-auto rounded-lg border border-border bg-popover/95 backdrop-blur-xl shadow-2xl shadow-black/40 scroll-sleek">
+            <div className="absolute right-0 top-full mt-2 z-50 w-[min(20rem,calc(100vw-1.5rem))] max-h-[min(70vh,calc(100vh-7rem))] overflow-auto rounded-lg border border-border bg-popover/95 backdrop-blur-xl shadow-2xl shadow-black/40 scroll-sleek">
               <div className="sticky top-0 px-3 py-2 border-b border-border/60 bg-popover/95 backdrop-blur-xl">
                 <p className="label-mono">// Available models</p>
               </div>
               {models.map((m) => (
                 <button
                   key={m.id}
+                  type="button"
                   onClick={() => {
                     setSelectedModel(m.id);
                     setShowModelPicker(false);
@@ -384,7 +488,7 @@ export default function ChatPage() {
       </header>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-auto scroll-sleek relative">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto scroll-sleek relative">
         {messages.length === 0 ? (
           <div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-16 flex flex-col items-center justify-center min-h-full gap-6 sm:gap-8">
             {/* Floating gradient orb */}
@@ -478,8 +582,8 @@ export default function ChatPage() {
           <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-8">
             {messages.map((msg, i) => {
               const isUser = msg.role === "user";
-              if (!isUser && (msg.content === "__QUOTA_ERROR__" || msg.content === "__PREMIUM_QUOTA_ERROR__")) {
-                const isPremiumModel = msg.content === "__PREMIUM_QUOTA_ERROR__";
+              if (!isUser && msg.error) {
+                const isPremiumModel = msg.error === "premium_quota";
                 return (
                   <div key={i} className="flex gap-4 fade-up">
                     <div className="shrink-0">
@@ -493,13 +597,22 @@ export default function ChatPage() {
                       <ChatErrorCard
                         isPremiumModel={isPremiumModel}
                         onSwitchModel={isPremiumModel ? () => {
-                          setSelectedModel("gpt-3.5-turbo");
+                          const STANDARD_MODEL = "gpt-3.5-turbo";
+                          setSelectedModel(STANDARD_MODEL);
+                          // Find the user turn that triggered the error so we
+                          // can re-send it, preserving the rest of the history.
+                          const lastUser = [...messages].reverse().find((m) => m.role === "user");
                           setMessages((prev) => {
-                            // Remove the error card and retry last user message
-                            const lastUserMsg = prev.slice().reverse().find(m => m.role === "user");
-                            return lastUserMsg ? [lastUserMsg] : [];
+                            const next = [...prev];
+                            // Drop the trailing error card…
+                            if (next.length && next[next.length - 1].error) next.pop();
+                            // …and the user turn it replied to (sendMessage re-adds it).
+                            for (let j = next.length - 1; j >= 0; j--) {
+                              if (next[j].role === "user") { next.splice(j, 1); break; }
+                            }
+                            return next;
                           });
-                          setTimeout(() => sendMessage(), 100);
+                          if (lastUser) sendMessage(lastUser.content, STANDARD_MODEL);
                         } : undefined}
                       />
                     </div>
@@ -533,9 +646,10 @@ export default function ChatPage() {
                       )}
                     </div>
                     <div
-                      className={`text-sm leading-relaxed px-4 py-3 rounded-lg border ${
+                      aria-live={!isUser && isLoading && i === messages.length - 1 ? "polite" : "off"}
+                      className={`text-sm leading-relaxed px-4 py-3 rounded-lg border wrap-break-word ${
                         isUser
-                          ? "bg-primary/6 border-primary/20 border-l-2 border-l-primary whitespace-pre-wrap break-words"
+                          ? "bg-primary/6 border-primary/20 border-l-2 border-l-primary whitespace-pre-wrap"
                           : "bg-card/60 backdrop-blur-md border-border/70 border-l-2 border-l-copilot-purple prose-wingman"
                       }`}
                     >
@@ -568,7 +682,6 @@ export default function ChatPage() {
               );
             })}
               {toast && <Toast message={toast} onClose={() => setToast(null)} />}
-            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
@@ -615,12 +728,12 @@ export default function ChatPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.pdf,application/pdf"
               multiple
               className="hidden"
-              aria-label="Upload images"
+              aria-label="Upload images or PDFs"
               onChange={(e) => {
-                if (e.target.files) addImages(e.target.files);
+                if (e.target.files) addFiles(e.target.files);
                 e.target.value = "";
               }}
             />
@@ -641,21 +754,26 @@ export default function ChatPage() {
                 size="icon"
                 variant="ghost"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading || attachedImages.length >= 5}
+                disabled={isLoading || isProcessingFile || attachedImages.length >= 10}
                 className="h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground"
-                title="Attach image"
+                title="Attach image or PDF"
               >
-                <ImagePlus className="w-4 h-4" />
+                {isProcessingFile ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ImagePlus className="w-4 h-4" />
+                )}
               </Button>
               <Button
                 type="button"
                 size="icon"
-                onClick={() => sendMessage()}
-                disabled={(!input.trim() && attachedImages.length === 0) || isLoading}
+                onClick={() => (isLoading ? stopGenerating() : sendMessage())}
+                disabled={!isLoading && !input.trim() && attachedImages.length === 0}
+                aria-label={isLoading ? "Stop generating" : "Send message"}
                 className="h-9 w-9 rounded-lg bg-copilot-gradient hover:opacity-90 text-white border-0 disabled:opacity-40"
               >
                 {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Square className="w-3.5 h-3.5 fill-current" />
                 ) : (
                   <Send className="w-4 h-4" />
                 )}
@@ -664,7 +782,7 @@ export default function ChatPage() {
           </div>
           <div className="flex items-center justify-between mt-2.5 px-1">
             <p className="font-mono text-[9px] tracking-wider text-muted-foreground/60 uppercase">
-              Enter to send &middot; Paste or drop images
+              Enter to send &middot; Paste or drop images/PDFs
             </p>
             <p className="font-mono text-[9px] tracking-wider text-muted-foreground/60 uppercase">
               Copilot proxy

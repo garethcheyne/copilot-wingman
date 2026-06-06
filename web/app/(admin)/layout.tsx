@@ -22,7 +22,7 @@ import {
 import { AuthGate } from "@/components/auth-gate";
 import { ConnectionProvider } from "@/components/connection-provider";
 import { ElectricBorder } from "@/components/electric-border";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   MobileNavProvider,
   MobileNavTrigger,
@@ -325,6 +325,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
           side="left"
           className="w-72 max-w-[85vw] p-0 bg-sidebar/95 backdrop-blur-xl border-r border-border lg:hidden"
         >
+          <SheetTitle className="sr-only">Admin navigation</SheetTitle>
           <AdminNavBody />
         </SheetContent>
       </Sheet>

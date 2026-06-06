@@ -22,6 +22,7 @@ import { buildContext } from '../services/context-builder.js';
 import { countTokens, countMessageTokens } from '../services/tokenizer.js';
 import { logRequest } from '../services/usage.js';
 import { getModelById } from '../services/model-sync.js';
+import { expandPdfsInImages } from '../services/pdf-to-images.js';
 
 export const chatRouter = Router();
 
@@ -74,12 +75,13 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
     // Build context window (text only for history)
     const contextMessages = buildContext(history, session.systemPrompt, message);
 
-    // If images are attached, convert the last user message to multi-part content
+    // If images/PDFs are attached, expand any PDFs to per-page PNGs then build multi-part content
+    const expandedImages = images?.length ? await expandPdfsInImages(images) : [];
     const messages = contextMessages.map((msg, i) => {
-      if (i === contextMessages.length - 1 && msg.role === 'user' && images?.length) {
+      if (i === contextMessages.length - 1 && msg.role === 'user' && expandedImages.length) {
         const parts: ContentPart[] = [
           { type: 'text', text: typeof msg.content === 'string' ? msg.content : '' },
-          ...images.map((url) => ({ type: 'image_url' as const, image_url: { url } })),
+          ...expandedImages.map((url) => ({ type: 'image_url' as const, image_url: { url } })),
         ];
         return { ...msg, content: parts };
       }
@@ -272,6 +274,74 @@ function summariseToolCalls(
   }
   const toolsUsed = Array.from(counts.entries()).map(([name, count]) => ({ name, count }));
   return { toolCallsCount: toolCalls.length, toolsUsed: toolsUsed.length > 0 ? toolsUsed : null };
+}
+
+/**
+ * Persist new messages from a tool-calling conversation to the session archive.
+ *
+ * The /completions endpoint is stateless — callers send the full messages[]
+ * each turn. To avoid duplicating already-stored messages, we count how many
+ * messages the session already has, then only persist the tail (new messages)
+ * plus the upstream response message.
+ *
+ * This is fire-and-forget; failures are logged but never break the response.
+ */
+async function persistConversationMessages(
+  apiKeyId: string,
+  conversationId: string,
+  requestMessages: ChatMessage[],
+  responseMessage: ChatMessage | null,
+): Promise<string | null> {
+  try {
+    // Session key is deterministic from API-key + conversation
+    const sessionKey = `completions:${apiKeyId}:${conversationId}`;
+    const session = await getOrCreateSession(sessionKey, undefined, 'api_key');
+
+    // How many messages are already stored?
+    const existing = await getMessages(session.id);
+    const stored = existing.length;
+
+    // Persist only the new request messages (indices >= stored)
+    const newMessages = requestMessages.slice(stored);
+    for (const msg of newMessages) {
+      const content = typeof msg.content === 'string' ? msg.content
+        : Array.isArray(msg.content) ? msg.content.map((p) => ('text' in p ? p.text : `[image]`)).join('')
+        : null;
+      await addMessage(
+        session.id,
+        msg.role,
+        content,
+        undefined,
+        {
+          toolCalls: msg.tool_calls ?? null,
+          toolCallId: msg.tool_call_id ?? null,
+          name: msg.name ?? null,
+        }
+      );
+    }
+
+    // Persist the response message
+    if (responseMessage) {
+      const respContent = typeof responseMessage.content === 'string'
+        ? responseMessage.content : null;
+      await addMessage(
+        session.id,
+        responseMessage.role,
+        respContent,
+        undefined,
+        {
+          toolCalls: responseMessage.tool_calls ?? null,
+          toolCallId: responseMessage.tool_call_id ?? null,
+          name: responseMessage.name ?? null,
+        }
+      );
+    }
+
+    return session.id;
+  } catch (err) {
+    console.error('[chat/completions] Failed to persist conversation messages:', (err as Error).message);
+    return null;
+  }
 }
 
 function validateBody(body: CompletionsBody): { ok: true } | { ok: false; status: number; error: CompletionsError } {
@@ -479,8 +549,29 @@ chatRouter.post('/completions', async (req: Request, res: Response): Promise<voi
         namesArr.map((name) => ({ function: { name } })),
       );
 
+      // Persist conversation messages when a conversationId is supplied
+      let persistedSessionId: string | null = null;
+      if (conversationId && apiKeyId) {
+        // Reconstruct the response message from streamed data
+        const streamedToolCalls = namesArr.length > 0
+          ? Array.from(streamToolNames.entries()).map(([idx, name]) => ({
+              id: `call_stream_${idx}`,
+              type: 'function' as const,
+              function: { name, arguments: '' },
+            }))
+          : undefined;
+        const respMsg: ChatMessage = {
+          role: 'assistant',
+          content: assembledText || null,
+          tool_calls: streamedToolCalls,
+        };
+        persistedSessionId = await persistConversationMessages(
+          apiKeyId, conversationId, messages, respMsg,
+        );
+      }
+
       await logRequest({
-        sessionId: null,
+        sessionId: persistedSessionId,
         apiKeyId,
         source,
         model: modelUsed,
@@ -524,8 +615,17 @@ chatRouter.post('/completions', async (req: Request, res: Response): Promise<voi
       upstream.choices?.[0]?.message?.tool_calls,
     );
 
+    // Persist conversation messages when a conversationId is supplied
+    let persistedSessionId: string | null = null;
+    if (conversationId && apiKeyId) {
+      const respMsg = upstream.choices?.[0]?.message as ChatMessage | undefined;
+      persistedSessionId = await persistConversationMessages(
+        apiKeyId, conversationId, messages, respMsg ?? null,
+      );
+    }
+
     await logRequest({
-      sessionId: null,
+      sessionId: persistedSessionId,
       apiKeyId,
       source,
       model: modelUsed,

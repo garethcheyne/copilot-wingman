@@ -71,7 +71,7 @@ export interface LlmStatsSources {
   repo: string | null;
 }
 
-export interface RankedModel {
+interface RankedModel {
   rank: number;
   model_id: string;
   model_name: string;
@@ -139,7 +139,7 @@ async function llmStatsFetch<T>(path: string, apiKey: string): Promise<T | null>
 /**
  * List models from LLM Stats. Returns up to `limit` models.
  */
-export async function listModels(
+async function listModels(
   apiKey: string,
   opts?: { organization?: string; limit?: number }
 ): Promise<LlmStatsModel[]> {
@@ -185,7 +185,7 @@ export async function getModelDetail(
 /**
  * Get rankings for a category (e.g. "coding", "math", "reasoning").
  */
-export async function getRankings(
+async function getRankings(
   apiKey: string,
   category: string,
   limit = 20

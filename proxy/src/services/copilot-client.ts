@@ -447,7 +447,7 @@ export async function chatCompletionStream(request: ChatRequest): Promise<Readab
  * callers can pre-validate that a model supports `/chat/completions` before
  * issuing a tool-calling request.
  */
-export async function getModelEndpoint(model: string): Promise<EndpointType> {
+async function getModelEndpoint(model: string): Promise<EndpointType> {
   return resolveEndpoint(model);
 }
 

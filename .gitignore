@@ -27,6 +27,10 @@ redis-data/
 # Misc
 *.log
 npm-debug.log*
-resources/anthropic-sdk-typescript/
 
-.EXECUTIVE-SUMMARY.md
+# Tool caches
+.fallow/
+.playwright-mcp/
+
+# Removed — no longer in repo
+resources/

@@ -16,6 +16,7 @@ import { modelsRouter } from './routes/models.js';
 import { openApiRouter } from './routes/openapi.js';
 import { versionRouter } from './routes/version.js';
 import { startModelSync } from './services/model-sync.js';
+import { startDbPurge } from './services/db-purge.js';
 import { seedLlmStatsKeyFromEnv } from './services/llm-stats-seed.js';
 import { chatAuthMiddleware } from './middleware/chat-auth.js';
 import { rateLimitMiddleware } from './middleware/rate-limit.js';
@@ -76,6 +77,11 @@ app.listen(PORT, '0.0.0.0', () => {
   // Start background model sync (fetches upstream, populates DB)
   startModelSync().catch(err => {
     console.error('[proxy] Model sync startup failed:', err.message);
+  });
+
+  // Start background DB purge (removes data older than DATA_RETENTION_DAYS)
+  startDbPurge().catch(err => {
+    console.error('[proxy] DB purge startup failed:', err.message);
   });
 });
 
