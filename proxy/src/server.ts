@@ -25,17 +25,35 @@ import { sessionAuthMiddleware } from './middleware/session-auth.js';
 const app = express();
 const PORT = parseInt(process.env.PROXY_PORT ?? '3200', 10);
 
-// CORS — allow localhost (dev) and configured public origin (prod)
+// CORS — allow localhost (dev), D365 domains, and configured public origin (prod)
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN; // e.g. https://wingman.err403.com
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+    // No origin = direct server call (curl, Postman) — allow
+    if (!origin) {
       callback(null, true);
-    } else if (ALLOWED_ORIGIN && origin === ALLOWED_ORIGIN) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
+      return;
     }
+    // Localhost dev
+    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+      callback(null, true);
+      return;
+    }
+    // D365 AU domains (crm6.dynamics.com)
+    if (/^https:\/\/[a-z0-9]+\.crm6\.dynamics\.com$/.test(origin)) {
+      callback(null, true);
+      return;
+    }
+    // Configured CORS_ORIGIN (may be comma-separated list)
+    if (ALLOWED_ORIGIN) {
+      const allowedList = ALLOWED_ORIGIN.split(',').map((o) => o.trim());
+      if (allowedList.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+    }
+    // Reject unknown origins
+    callback(new Error(`Origin not allowed by CORS: ${origin}`));
   },
   credentials: true,
 }));
