@@ -113,7 +113,7 @@ if [[ $DO_PULL -eq 1 ]]; then
     # -f force, -d also remove dirs. We do NOT pass -x, so gitignored files
     # (.env, backups/, node_modules, etc.) are preserved. Belt-and-braces:
     # explicitly exclude .env in case someone ever accidentally un-ignores it.
-    git clean -fd -e .env -e .env.local
+    git clean -fd -e .env -e .env.local -e backups
     ok "code synced to origin/$BRANCH ($(git rev-parse --short HEAD))"
     [[ -f .env ]] || warn ".env not found — proxy will fail to start without it."
   else

@@ -34,3 +34,6 @@ npm-debug.log*
 
 # Removed — no longer in repo
 resources/
+
+# Local DB dumps written by upgradeWingman.sh
+backups/

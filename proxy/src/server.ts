@@ -18,6 +18,9 @@ import { versionRouter } from './routes/version.js';
 import { startModelSync } from './services/model-sync.js';
 import { startDbPurge } from './services/db-purge.js';
 import { seedLlmStatsKeyFromEnv } from './services/llm-stats-seed.js';
+import { checkEncryptionKey } from './services/startup-checks.js';
+
+checkEncryptionKey();
 import { chatAuthMiddleware } from './middleware/chat-auth.js';
 import { rateLimitMiddleware } from './middleware/rate-limit.js';
 import { sessionAuthMiddleware } from './middleware/session-auth.js';
