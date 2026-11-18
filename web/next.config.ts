@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 // Read the canonical VERSION file from the repo root and expose it to the app
 // at build time so the UI never drifts from the published version.
 function readVersion(): string {
+  // Docker builds pass APP_VERSION (the build context can't see ../VERSION).
+  if (process.env.APP_VERSION && process.env.APP_VERSION !== "dev") return process.env.APP_VERSION;
   try {
     return readFileSync(join(__dirname, "..", "VERSION"), "utf8").trim();
   } catch {

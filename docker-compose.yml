@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_PROXY_URL=${NEXT_PUBLIC_PROXY_URL:-http://localhost:3200}
+        - APP_VERSION=${APP_VERSION:-2026.11.18.1659}   # keep in sync with VERSION
     container_name: wingman-web
     ports:
       - "${WEB_PORT:-3000}:3000"
@@ -19,7 +20,7 @@ services:
       context: ./proxy
       dockerfile: Dockerfile
       args:
-        - APP_VERSION=${APP_VERSION:-2026.06.06.1240}
+        - APP_VERSION=${APP_VERSION:-2026.11.18.1659}
     container_name: wingman-proxy
     ports:
       - "${PROXY_PORT:-3200}:3200"
