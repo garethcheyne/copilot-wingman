@@ -146,6 +146,7 @@ if [[ $DO_BACKUP -eq 1 ]]; then
     if $DC exec -T postgres pg_dump -U wingman -d wingman \
          --clean --if-exists --quote-all-identifiers \
          | gzip -9 > "$BACKUP"; then
+      chmod 600 "$BACKUP"   # dumps contain encrypted secrets + user data
       SIZE="$(du -h "$BACKUP" 2>/dev/null | awk '{print $1}')"
       ok "backup saved (${SIZE:-unknown size})"
     else
