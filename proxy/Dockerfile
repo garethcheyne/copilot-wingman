@@ -1,11 +1,13 @@
 FROM node:24-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@10 --activate
+# pnpm version comes from package.json "packageManager" via corepack
+RUN corepack enable
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --config.confirmModulesPureness=false
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY tsconfig.json ./
 COPY src/ ./src/
@@ -15,15 +17,17 @@ RUN pnpm run build
 # --- Production stage ---
 FROM node:24-alpine
 
-RUN corepack enable && corepack prepare pnpm@10 --activate
+# pnpm version comes from package.json "packageManager" via corepack
+RUN corepack enable
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 # poppler-utils provides pdftoppm for PDF→PNG conversion
 RUN apk add --no-cache poppler-utils
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod --config.confirmModulesPureness=false
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --prod
 
 COPY --from=builder /app/dist ./dist
 
@@ -42,4 +46,5 @@ ENV PROXY_PORT=3200
 
 EXPOSE 3200
 
-CMD ["node", "dist/server.js"]
+# Apply pending migrations before serving (idempotent; aborts start on failure)
+CMD ["sh", "-c", "node scripts/migrate.mjs && exec node dist/server.js"]

@@ -5,7 +5,7 @@
  * then feeds those questions to other keys/models to verify scope enforcement,
  * default model injection, auth, and cross-key isolation.
  *
- * Run:  cd proxy && npx tsx ../tests/api-keys.test.ts
+ * Run:  cd proxy && pnpm exec tsx ../tests/api-keys.test.ts
  */
 
 import { readFileSync, existsSync } from 'fs';

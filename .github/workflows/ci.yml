@@ -15,22 +15,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4   # version from package.json "packageManager"
+        with:
+          package_json_file: ${{ matrix.project }}/package.json
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.project }}/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: ${{ matrix.project }}
 
       - name: Lint
-        run: npm run lint --if-present
+        run: pnpm run --if-present lint
         working-directory: ${{ matrix.project }}
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
         working-directory: ${{ matrix.project }}
         env:
           NEXT_PUBLIC_PROXY_URL: http://localhost:3200
@@ -57,18 +61,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4   # version from package.json "packageManager"
+        with:
+          package_json_file: proxy/package.json
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: proxy/package-lock.json
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: proxy/pnpm-lock.yaml
 
       - name: Install proxy dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: proxy
 
       - name: Build proxy
-        run: npm run build
+        run: pnpm run build
+        working-directory: proxy
+
+      - name: Unit tests
+        run: pnpm test
         working-directory: proxy
 
       - name: Init database schema
@@ -80,18 +92,26 @@ jobs:
           PGPASSWORD: password
           PGDATABASE: wingman
 
-      - name: Smoke test – proxy starts cleanly
-        run: |
-          timeout 5 node dist/server.js &
-          sleep 2
-          curl -sf http://localhost:3200/health || echo "No /health endpoint yet — build verified"
-          kill %1 2>/dev/null || true
+      - name: Apply migrations on top of schema.sql (fresh-install path)
+        run: node scripts/migrate.mjs
         working-directory: proxy
         env:
           DATABASE_URL: postgresql://wingman:password@localhost:5432/wingman
-          INTERNAL_API_KEY: ci-test-key
-          ENCRYPTION_KEY: 7b7d448727336b9ddf29be9c70e9ae04
-          GITHUB_TOKEN_CMD: "echo skip"
+
+      - name: Smoke test – proxy starts cleanly
+        run: |
+          export ENCRYPTION_KEY="$(openssl rand -hex 16)"
+          node dist/server.js > server.log 2>&1 &
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3200/health || true)
+            # 200 = healthy, 503 = up but no Copilot connection (expected in CI)
+            if [ "$code" = "200" ] || [ "$code" = "503" ]; then echo "proxy up (HTTP $code)"; kill %1; exit 0; fi
+            sleep 1
+          done
+          echo "proxy did not come up"; cat server.log; exit 1
+        working-directory: proxy
+        env:
+          DATABASE_URL: postgresql://wingman:password@localhost:5432/wingman
 
   # Build + verify each SDK compiles cleanly. fail-fast: false means one SDK
   # failing doesn't block the others — they'll be dropped from the release
@@ -105,18 +125,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        if: matrix.sdk == 'node'
+        with:
+          package_json_file: sdk/node/package.json
+
       - uses: actions/setup-node@v4
         if: matrix.sdk == 'node'
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: sdk/node/package-lock.json
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: sdk/node/pnpm-lock.yaml
 
       - name: Build Node SDK
         if: matrix.sdk == 'node'
         run: |
-          npm ci
-          npm run build
+          pnpm install --frozen-lockfile
+          pnpm run build
         working-directory: sdk/node
 
       - uses: actions/setup-python@v5
@@ -277,21 +302,26 @@ jobs:
             echo "Tag ${{ steps.ver.outputs.tag }} not found — will release."
           fi
 
+      - uses: pnpm/action-setup@v4
+        if: steps.tagcheck.outputs.exists == 'false' && matrix.sdk == 'node'
+        with:
+          package_json_file: sdk/node/package.json
+
       - uses: actions/setup-node@v4
         if: steps.tagcheck.outputs.exists == 'false' && matrix.sdk == 'node'
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: sdk/node/package-lock.json
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: sdk/node/pnpm-lock.yaml
 
       - name: Pack Node SDK
         if: steps.tagcheck.outputs.exists == 'false' && matrix.sdk == 'node'
         run: |
           set -euo pipefail
           mkdir -p ../../sdk-artifacts
-          npm ci
-          npm run build
-          npm pack
+          pnpm install --frozen-lockfile
+          pnpm run build
+          pnpm pack
           mv ./*.tgz ../../sdk-artifacts/
         working-directory: sdk/node
 
