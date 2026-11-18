@@ -1,4 +1,5 @@
 import { APIResource } from "./health.js";
+import type { ModelUpgradeNotice } from "./chat-completions.js";
 import type { RequestOptions } from "../client.js";
 import { Stream, type ChatStreamChunk } from "../stream.js";
 import { ChatCompletions } from "./chat-completions.js";
@@ -23,6 +24,8 @@ export interface ChatResponse {
   sessionId: string;
   /** The assistant's reply text. */
   message: string;
+  /** Present when a retired model was rerouted to its successor. */
+  model_upgrade?: ModelUpgradeNotice;
   [key: string]: unknown;
 }
 

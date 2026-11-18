@@ -22,9 +22,33 @@ import { buildContext } from '../services/context-builder.js';
 import { countTokens, countMessageTokens } from '../services/tokenizer.js';
 import { logRequest } from '../services/usage.js';
 import { getModelById } from '../services/model-sync.js';
+import { resolveModel, buildUpgradeNotice } from '../services/model-resolver.js';
+import type { ModelUpgradeNotice } from '../services/model-resolver.js';
 import { expandPdfsInImages } from '../services/pdf-to-images.js';
 
 export const chatRouter = Router();
+
+function retiredMessage(model: string): string {
+  return `The model '${model}' has been retired upstream and has no automatic successor. ` +
+    `Choose an active model (GET /api/models), or ask an admin to add a model alias.`;
+}
+
+/**
+ * SSE chunk announcing a model reroute. OpenAI chunk shape with an empty
+ * delta so standard clients ignore it; Wingman-aware clients read
+ * `model_upgrade`.
+ */
+function upgradeChunk(model: string, notice: ModelUpgradeNotice): string {
+  const chunk = {
+    id: `chatcmpl-wingman-${Date.now().toString(36)}`,
+    object: 'chat.completion.chunk',
+    created: Math.floor(Date.now() / 1000),
+    model,
+    choices: [{ index: 0, delta: {}, finish_reason: null }],
+    model_upgrade: notice,
+  };
+  return `data: ${JSON.stringify(chunk)}\n\n`;
+}
 
 /**
  * POST /api/chat
@@ -34,11 +58,14 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
   const startedAt = Date.now();
   let sessionId: string | null = null;
   let modelUsed: string | null = null;
+  let requestedModelForLog: string | null = null;
+  let requestedModelRetired = false;
+  let modelUpgrade: ModelUpgradeNotice | null = null;
   const apiKeyId: string | null = (req as any).apiKeyRecord?.id ?? null;
   const source: 'ui' | 'api_key' = apiKeyId ? 'api_key' : 'ui';
 
   try {
-    const { sessionKey, message, systemPrompt, model, stream, images } = req.body as {
+    const { sessionKey, message, systemPrompt, model: requestedModel, stream, images } = req.body as {
       sessionKey: string;
       message: string;
       systemPrompt?: string;
@@ -46,6 +73,21 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       stream?: boolean;
       images?: string[]; // base64 data URLs
     };
+
+    // Reroute retired/unknown models to the newest active model in the same family.
+    let model = requestedModel;
+    requestedModelForLog = requestedModel ?? null;
+    if (requestedModel) {
+      const stashed = (req as any).wingmanResolved;
+      const resolved = stashed?.requested === requestedModel ? stashed : await resolveModel(requestedModel);
+      model = resolved.model;
+      requestedModelRetired = resolved.retired;
+      modelUpgrade = buildUpgradeNotice(resolved);
+      if (resolved.rerouted) res.setHeader('X-Wingman-Model-Rerouted', `${requestedModel} -> ${model}`);
+      if (resolved.retired && !resolved.rerouted) {
+        throw Object.assign(new Error(retiredMessage(requestedModel)), { status: 400 });
+      }
+    }
 
     modelUsed = model ?? null;
 
@@ -56,6 +98,8 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
         apiKeyId,
         source,
         model: modelUsed,
+        requestedModel: requestedModelForLog,
+        requestedModelRetired,
         promptTokens: null,
         completionTokens: null,
         latencyMs: Date.now() - startedAt,
@@ -103,6 +147,7 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       res.setHeader('X-Accel-Buffering', 'no');
 
       const upstream = await chatCompletionStream({ messages, model, stream: true });
+      if (modelUpgrade) res.write(upgradeChunk(model as string, modelUpgrade));
       const reader = upstream.getReader();
       const decoder = new TextDecoder();
       let fullContent = '';
@@ -149,6 +194,8 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
         apiKeyId,
         source,
         model: modelUsed,
+        requestedModel: requestedModelForLog,
+        requestedModelRetired,
         promptTokens,
         completionTokens,
         latencyMs: Date.now() - startedAt,
@@ -166,6 +213,7 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       res.json({
         sessionId: session.id,
         message: content,
+        ...(modelUpgrade ? { model_upgrade: modelUpgrade } : {}),
       });
 
       await logRequest({
@@ -173,6 +221,8 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
         apiKeyId,
         source,
         model: modelUsed,
+        requestedModel: requestedModelForLog,
+        requestedModelRetired,
         promptTokens,
         completionTokens,
         latencyMs: Date.now() - startedAt,
@@ -203,6 +253,8 @@ chatRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       apiKeyId,
       source,
       model: modelUsed,
+        requestedModel: requestedModelForLog,
+        requestedModelRetired,
       promptTokens: null,
       completionTokens: null,
       latencyMs: Date.now() - startedAt,
@@ -237,6 +289,7 @@ interface CompletionsError {
     | 'model_does_not_support_tools'
     | 'model_endpoint_unsupported'
     | 'model_not_in_scope'
+    | 'model_retired'
     | 'upstream_error'
     | 'upstream_timeout';
   message: string;
@@ -389,7 +442,9 @@ chatRouter.post('/completions', async (req: Request, res: Response): Promise<voi
   const apiKeyId: string | null = (req as any).apiKeyRecord?.id ?? null;
   const source: 'ui' | 'api_key' = apiKeyId ? 'api_key' : 'ui';
   const body = (req.body ?? {}) as CompletionsBody;
-  const modelUsed = body.model ?? null;
+  let modelUsed = body.model ?? null;
+  const requestedModelForLog = body.model ?? null;
+  let requestedModelRetired = false;
 
   // Multi-tenant attribution: the calling app tells us which of *its* users
   // and which conversation this request belongs to. All optional — stateless
@@ -412,6 +467,8 @@ chatRouter.post('/completions', async (req: Request, res: Response): Promise<voi
       apiKeyId,
       source,
       model: modelUsed,
+        requestedModel: requestedModelForLog,
+        requestedModelRetired,
       promptTokens,
       completionTokens: null,
       latencyMs: Date.now() - startedAt,
@@ -431,7 +488,21 @@ chatRouter.post('/completions', async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    const model = body.model as string;
+    // Reroute retired/unknown models to the newest active same-family model
+    // that serves /chat/completions (this path always calls that endpoint).
+    const stashed = (req as any).wingmanResolved;
+    const resolved = stashed?.requested === body.model ? stashed : await resolveModel(body.model as string, { requireChat: true });
+    const model = resolved.model;
+    modelUsed = model;
+    requestedModelRetired = resolved.retired;
+    const modelUpgrade = buildUpgradeNotice(resolved);
+    if (resolved.rerouted) res.setHeader('X-Wingman-Model-Rerouted', `${resolved.requested} -> ${model}`);
+    if (resolved.retired && !resolved.rerouted) {
+      const err: CompletionsError = { code: 'model_retired', message: retiredMessage(model), param: 'model' };
+      sendError(res, 400, err);
+      await logErr('error', err.message);
+      return;
+    }
     const messages = body.messages as ChatMessage[];
     const tools = body.tools;
 
@@ -490,6 +561,7 @@ chatRouter.post('/completions', async (req: Request, res: Response): Promise<voi
       res.setHeader('X-Accel-Buffering', 'no');
 
       const upstream = await chatCompletionStreamRaw({ ...rawReq, stream: true });
+      if (modelUpgrade) res.write(upgradeChunk(model, modelUpgrade));
       const reader = upstream.getReader();
       const decoder = new TextDecoder();
       let assembledText = '';
@@ -575,6 +647,8 @@ chatRouter.post('/completions', async (req: Request, res: Response): Promise<voi
         apiKeyId,
         source,
         model: modelUsed,
+        requestedModel: requestedModelForLog,
+        requestedModelRetired,
         promptTokens,
         completionTokens,
         latencyMs: Date.now() - startedAt,
@@ -600,6 +674,7 @@ chatRouter.post('/completions', async (req: Request, res: Response): Promise<voi
       model: upstream.model ?? model,
       choices: upstream.choices,
       usage: upstream.usage,
+      ...(modelUpgrade ? { model_upgrade: modelUpgrade } : {}),
     };
 
     res.json(out);
@@ -629,6 +704,8 @@ chatRouter.post('/completions', async (req: Request, res: Response): Promise<voi
       apiKeyId,
       source,
       model: modelUsed,
+        requestedModel: requestedModelForLog,
+        requestedModelRetired,
       promptTokens: upstream.usage?.prompt_tokens ?? promptTokens,
       completionTokens,
       latencyMs: Date.now() - startedAt,

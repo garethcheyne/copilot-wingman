@@ -85,6 +85,19 @@ export interface ChatCompletionUsage {
   total_tokens: number;
 }
 
+/**
+ * Present when Wingman rerouted a request for a retired model to its
+ * successor. Update your integration to use `name`.
+ */
+export interface ModelUpgradeNotice {
+  /** Model that actually served the request — switch to this id. */
+  name: string;
+  /** Model id the request asked for. */
+  requested: string;
+  /** Human-readable explanation. */
+  message: string;
+}
+
 export interface ChatCompletion {
   id: string;
   object: "chat.completion" | string;
@@ -92,6 +105,7 @@ export interface ChatCompletion {
   model: string;
   choices: ChatCompletionChoice[];
   usage?: ChatCompletionUsage;
+  model_upgrade?: ModelUpgradeNotice;
 }
 
 // ─── Streaming chunks ──────────────────────────────────────────────────────────
@@ -124,6 +138,8 @@ export interface ChatCompletionChunk {
     finish_reason?: string | null;
   }>;
   usage?: ChatCompletionUsage;
+  /** Sent on the first chunk only, when the request was rerouted. */
+  model_upgrade?: ModelUpgradeNotice;
 }
 
 // ─── Resource ──────────────────────────────────────────────────────────────────

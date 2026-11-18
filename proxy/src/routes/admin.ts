@@ -307,6 +307,27 @@ adminRouter.post('/models/validate-scopes', async (req: Request, res: Response):
 });
 
 /**
+ * GET /api/admin/models/legacy-usage
+ * API keys still requesting retired models (rollup, newest first).
+ * `rerouted_to` null = no successor exists, so those requests are failing.
+ */
+adminRouter.get('/models/legacy-usage', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT k.id AS api_key_id, k.name AS api_key_name, k.key_prefix,
+              u.requested_model, u.rerouted_to, u.request_count,
+              u.first_seen_at, u.last_seen_at
+         FROM api_key_legacy_model_usage u
+         JOIN api_keys k ON k.id = u.api_key_id
+        ORDER BY u.last_seen_at DESC`,
+    );
+    res.json({ data: rows });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+/**
  * GET /api/admin/models/:id
  * Returns a single model from the DB, optionally enriched with LLM Stats data.
  */

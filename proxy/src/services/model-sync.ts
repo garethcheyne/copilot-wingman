@@ -12,6 +12,7 @@
  */
 
 import { pool } from '../db/client.js';
+import { upgradeApiKeyModels, invalidateModelResolverCache } from './model-resolver.js';
 import { getCopilotToken } from './copilot-token.js';
 import { hasLlmStatsKey, loadLlmStatsKey, fetchEnrichmentMap, llmStatsIdCandidates } from './llm-stats.js';
 import type { ModelEnrichment } from './llm-stats.js';
@@ -377,9 +378,17 @@ export async function syncModels(): Promise<SyncResult> {
     }
   }
 
-  // Detect removed models (in DB but not in upstream)
+  // Detect removed models (in DB but not in upstream).
+  // Guard against a truncated/empty upstream response: if upstream suddenly
+  // returns less than half of what we consider active, skip the removal pass
+  // rather than mark (and reroute) most of the catalog as retired.
+  const previouslyActive = [...existingMap.values()].filter(r => r.status === 'active').length;
+  const suspicious = previouslyActive > 0 && upstream.length < previouslyActive * 0.5;
+  if (suspicious) {
+    console.warn(`[model-sync] Upstream returned ${upstream.length} models vs ${previouslyActive} active — skipping removal detection this cycle`);
+  }
   for (const [id, row] of existingMap) {
-    if (row.status === 'active' && !upstreamIds.has(id)) {
+    if (!suspicious && row.status === 'active' && !upstreamIds.has(id)) {
       await pool.query(
         `UPDATE upstream_models SET status = 'removed', removed_at = NOW(), updated_at = NOW() WHERE id = $1`,
         [id],
@@ -409,6 +418,14 @@ export async function syncModels(): Promise<SyncResult> {
   if (result.changed.length) summary.push(`↻${result.changed.length} changed`);
   summary.push(`${result.unchanged} unchanged`);
   console.log(`[model-sync] Sync complete: ${summary.join(', ')} (${result.total_active} active)`);
+
+  // Auto-upgrade API keys that reference retired models (idempotent).
+  invalidateModelResolverCache();
+  try {
+    await upgradeApiKeyModels();
+  } catch (err) {
+    console.error('[model-sync] API key model upgrade failed:', (err as Error).message);
+  }
 
   return result;
 }

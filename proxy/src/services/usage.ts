@@ -24,6 +24,10 @@ export interface LogRequestInput {
   hadTools?: boolean;
   toolCallsCount?: number;
   toolsUsed?: ToolUsage[] | null;
+  // Model-upgrade tracking (optional): what the caller asked for, and whether
+  // that id is a retired upstream model. `model` is what was actually used.
+  requestedModel?: string | null;
+  requestedModelRetired?: boolean;
 }
 
 export async function logRequest(input: LogRequestInput): Promise<void> {
@@ -33,8 +37,9 @@ export async function logRequest(input: LogRequestInput): Promise<void> {
          (session_id, api_key_id, source, model,
           prompt_tokens, completion_tokens, latency_ms, status, error_message,
           end_user, conversation_id,
-          tool_calls_count, tools_used, had_tools)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          tool_calls_count, tools_used, had_tools,
+          requested_model, requested_model_retired)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [
         input.sessionId,
         input.apiKeyId ?? null,
@@ -50,8 +55,23 @@ export async function logRequest(input: LogRequestInput): Promise<void> {
         input.toolCallsCount ?? 0,
         input.toolsUsed && input.toolsUsed.length > 0 ? JSON.stringify(input.toolsUsed) : null,
         input.hadTools ?? false,
+        input.requestedModel ?? input.model,
+        input.requestedModelRetired ?? false,
       ]
     );
+
+    if (input.requestedModelRetired && input.apiKeyId && input.requestedModel) {
+      const reroutedTo = input.model && input.model !== input.requestedModel ? input.model : null;
+      await pool.query(
+        `INSERT INTO api_key_legacy_model_usage (api_key_id, requested_model, rerouted_to, request_count)
+         VALUES ($1, $2, $3, 1)
+         ON CONFLICT (api_key_id, requested_model) DO UPDATE
+           SET request_count = api_key_legacy_model_usage.request_count + 1,
+               rerouted_to = EXCLUDED.rerouted_to,
+               last_seen_at = NOW()`,
+        [input.apiKeyId, input.requestedModel, reroutedTo],
+      );
+    }
   } catch (err) {
     // Telemetry must never break the request — log and swallow.
     console.error('[usage] Failed to log request:', (err as Error).message);

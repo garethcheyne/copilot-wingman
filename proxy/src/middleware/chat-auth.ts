@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { validateApiKey } from '../services/api-keys.js';
+import { resolveModel } from '../services/model-resolver.js';
 import { lookupSessionByRawToken } from '../services/sessions.js';
 
 /**
@@ -48,8 +49,22 @@ export async function chatAuthMiddleware(req: Request, res: Response, next: Next
       const apiKey = await validateApiKey(candidateKey);
       if (apiKey) {
         // Check model scope if the request specifies a model
+        // A retired model is allowed if its successor is in scope (scopes are
+        // auto-upgraded on model sync, but clients may still send the old id).
         const requestedModel = req.body?.model;
-        if (requestedModel && apiKey.scopes.length > 0 && !apiKey.scopes.includes(requestedModel)) {
+        let resolvedModel = requestedModel;
+        if (typeof requestedModel === 'string' && requestedModel) {
+          const requireChat = /\/completions\/?$/.test(req.path);
+          const resolved = await resolveModel(requestedModel, { requireChat, allowed: apiKey.scopes });
+          resolvedModel = resolved.model;
+          (req as any).wingmanResolved = resolved; // reused by the route (single resolve/log per request)
+        }
+        if (
+          requestedModel &&
+          apiKey.scopes.length > 0 &&
+          !apiKey.scopes.includes(requestedModel) &&
+          !apiKey.scopes.includes(resolvedModel)
+        ) {
           res.status(403).json({
             error: `API key not authorized for model '${requestedModel}'`,
             allowed_models: apiKey.scopes,

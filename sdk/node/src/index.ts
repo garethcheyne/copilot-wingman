@@ -29,6 +29,7 @@ export type {
   ChatCompletionTool,
   ChatCompletionToolChoice,
   ChatCompletionUsage,
+  ModelUpgradeNotice,
 } from "./resources/chat-completions.js";
 export {
   WingmanError,
